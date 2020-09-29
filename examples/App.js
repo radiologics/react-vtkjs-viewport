@@ -8,6 +8,7 @@ import VTKCornerstonePaintingSyncExample from './VTKCornerstonePaintingSyncExamp
 import VTKLoadImageDataExample from './VTKLoadImageDataExample.js';
 import VTKCrosshairsExample from './VTKCrosshairsExample.js';
 import VTKRotatableCrosshairsExample from './VTKRotatableCrosshairsExample.js';
+import VTK4UpExample from './VTK4UpExample.js';
 import VTKMPRRotateExample from './VTKMPRRotateExample.js';
 import VTKVolumeRenderingExample from './VTKVolumeRenderingExample.js';
 
@@ -79,6 +80,11 @@ function Index() {
         'Demonstrates how to set up the Rotatable Crosshairs interactor style and SVG Widget',
     },
     {
+      title: 'MPR 4UP Example',
+      url: '/4up',
+      text: 'Demonstrates a 4UP view',
+    },
+    {
       title: 'MPR Rotate Example',
       url: '/rotate',
       text: 'Demonstrates how to set up the MPR Rotate interactor style',
@@ -91,7 +97,7 @@ function Index() {
     },
   ];
 
-  const exampleComponents = examples.map(e => {
+  const exampleComponents = examples.map((e) => {
     return <ExampleEntry key={e.title} {...e} />;
   });
 
@@ -151,6 +157,7 @@ function AppRouter() {
   const crosshairs = () => Example({ children: <VTKCrosshairsExample /> });
   const rotatableCrosshairs = () =>
     Example({ children: <VTKRotatableCrosshairsExample /> });
+  const fourUp = () => Example({ children: <VTK4UpExample /> });
   const rotateMPR = () => Example({ children: <VTKMPRRotateExample /> });
   const volumeRendering = () =>
     Example({ children: <VTKVolumeRenderingExample /> });
@@ -169,6 +176,7 @@ function AppRouter() {
           path="/rotatable-crosshairs"
           render={rotatableCrosshairs}
         />
+        <Route exact path="/4up" render={fourUp} />
         <Route exact path="/rotate" render={rotateMPR} />
         <Route exact path="/volume-rendering" render={volumeRendering} />
         <Route exact path="/cornerstone-load-image-data" render={loadImage} />
