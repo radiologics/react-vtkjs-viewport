@@ -11,14 +11,21 @@ import {
 import { api as dicomwebClientApi } from 'dicomweb-client';
 import vtkVolume from 'vtk.js/Sources/Rendering/Core/Volume';
 import vtkVolumeMapper from 'vtk.js/Sources/Rendering/Core/VolumeMapper';
+import vtkImageData from 'vtk.js/Sources/Common/DataModel/ImageData';
+import vtkDataArray from 'vtk.js/Sources/Common/Core/DataArray';
+import cornerstoneTools from 'cornerstone-tools';
+import vtkColorTransferFunction from 'vtk.js/Sources/Rendering/Core/ColorTransferFunction';
+import vtkPiecewiseFunction from 'vtk.js/Sources/Common/DataModel/PiecewiseFunction';
+
+const segmentationModule = cornerstoneTools.getModule('segmentation');
 
 const url = 'https://server.dcmjs.org/dcm4chee-arc/aets/DCM4CHEE/rs';
 const studyInstanceUID =
   '1.3.12.2.1107.5.2.32.35162.30000015050317233592200000046';
 const mrSeriesInstanceUID =
   '1.3.12.2.1107.5.2.32.35162.1999123112191238897317963.0.0.0';
-const segSeriesInstanceUID =
-  '1.3.12.2.1107.5.2.32.35162.1999123112191238897317963.0.0.0';
+// const segSeriesInstanceUID =
+//   '1.3.12.2.1107.5.2.32.35162.1999123112191238897317963.0.0.0';
 const searchInstanceOptions = {
   studyInstanceUID,
 };
@@ -26,8 +33,10 @@ const searchInstanceOptions = {
 // MR  1.3.12.2.1107.5.2.32.35162.1999123112191238897317963.0.0.0
 // SEG 	1.2.276.0.7230010.3.1.3.296485376.8.1542816659.201008
 
-const segURL =
-  'https://server.dcmjs.org/dcm4chee-arc/aets/DCM4CHEE/rs/studies/1.3.12.2.1107.5.2.32.35162.30000015050317233592200000046/series/1.2.276.0.7230010.3.1.3.296485376.8.1542816659.201008/instances/1.2.276.0.7230010.3.1.4.296485376.8.1542816659.201009';
+const segURL = `${window.location.origin}/brainSeg/brainSeg.dcm`;
+
+// const segURL =
+//   'https://server.dcmjs.org/dcm4chee-arc/aets/DCM4CHEE/rs/studies/1.3.12.2.1107.5.2.32.35162.30000015050317233592200000046/series/1.2.276.0.7230010.3.1.3.296485376.8.1542816659.201008/instances/1.2.276.0.7230010.3.1.4.296485376.8.1542816659.201009';
 
 function loadDataset(imageIds, displaySetInstanceUid) {
   const imageDataObject = getImageData(imageIds, displaySetInstanceUid);
@@ -35,6 +44,46 @@ function loadDataset(imageIds, displaySetInstanceUid) {
   loadImageData(imageDataObject);
   return imageDataObject;
 }
+
+function makeLabelMapColorTransferFunction(lablemapColorLUT) {
+  const labelMap = {
+    cfun: vtkColorTransferFunction.newInstance(),
+    ofun: vtkPiecewiseFunction.newInstance(),
+  };
+
+  // labelmap pipeline
+  labelMap.ofun.addPointLong(0, 0, 0.5, 1.0);
+  labelMap.ofun.addPointLong(1, 1.0, 0.5, 1.0);
+
+  buildColorTransferFunction(labelMap, lablemapColorLUT, 1.0);
+
+  return labelMap;
+}
+
+const buildColorTransferFunction = (labelmap, colorLUT, opacity) => {
+  // TODO -> It seems to crash if you set it higher than 256??
+  const numColors = Math.min(256, colorLUT.length);
+
+  // This commented out code will read the actual labelmap values, but we have one (?) volume
+
+  // for (let i = 0; i < numColors; i++) {
+  //   //for (let i = 0; i < colorLUT.length; i++) {
+  //   const color = colorLUT[i];
+  //   labelmap.cfun.addRGBPoint(
+  //     i,
+  //     color[0] / 255,
+  //     color[1] / 255,
+  //     color[2] / 255
+  //   );
+
+  //   // Set the opacity per label.
+  //   const segmentOpacity = (color[3] / 255) * opacity;
+  //   labelmap.ofun.addPointLong(i, segmentOpacity, 0.5, 1.0);
+  // }
+
+  labelmap.cfun.addRGBPoint(1, 1, 0, 0); // label '1' will be red
+  labelmap.ofun.addPointLong(1, 1.0, 0.5, 1.0); // All labels full opacity
+};
 
 function createStudyImageIds(baseUrl, studySearchOptions) {
   const SOP_INSTANCE_UID = '00080018';
@@ -74,13 +123,9 @@ const generateSegVolume = async (
   segP10ArrayBuffer,
   imageIds
 ) => {
-  debugger;
   const imagePromises = [];
 
-  const numImages = imageIds.length;
-  let processed = 0;
-
-  //
+  //Fetch images with cornerstone just to cache the metadata needed to format the SEG.
   for (let i = 0; i < imageIds.length; i++) {
     const promise = window.cornerstone.loadAndCacheImage(imageIds[i]);
 
@@ -88,11 +133,10 @@ const generateSegVolume = async (
   }
 
   await Promise.all(imagePromises);
-  debugger;
 
+  // Use dcmjs to extract a labelmap from the SEG.
   const {
     labelmapBuffer,
-    segmentsOnFrame,
   } = dcmjs.adapters.Cornerstone.Segmentation.generateToolState(
     imageIds,
     segP10ArrayBuffer,
@@ -100,7 +144,7 @@ const generateSegVolume = async (
   );
 
   // Create VTK Image Data with buffer as input
-  labelmapDataObject = vtkImageData.newInstance();
+  const labelmapDataObject = vtkImageData.newInstance();
 
   const dataArray = vtkDataArray.newInstance({
     numberOfComponents: 1, // labelmap with single component
@@ -115,18 +159,19 @@ const generateSegVolume = async (
     ...imageDataObject.vtkImageData.getDirection()
   );
 
+  const labelmapColorLUT = segmentationModule.state.colorLutTables[0];
+
   // Cache the labelmap volume.
-  return labelmapDataObject;
+  return { labelmapDataObject, labelmapColorLUT };
 };
 
-function fetchSegArrayBuffer(url) {
+async function fetchSegArrayBuffer(url) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
 
     console.log(`fetching: ${url}`);
 
     xhr.onload = () => {
-      debugger;
       console.log(`Request returned, status: ${xhr.status}`);
       if (xhr.status === 200) {
         resolve(xhr.response);
@@ -146,35 +191,6 @@ function fetchSegArrayBuffer(url) {
   });
 }
 
-const fetchSeg = () => {
-  return new Promise(resolve => {
-    const oReq = new XMLHttpRequest();
-
-    // Add event listeners for request failure
-    oReq.addEventListener('error', error => {
-      console.warn('An error occurred while retrieving the data');
-      reject(error);
-    });
-
-    // When the JSON has been returned, parse it into a JavaScript Object
-    // and render the OHIF Viewer with this data
-    oReq.addEventListener('load', event => {
-      debugger;
-      resolve(oReq.response);
-    });
-
-    // Open the Request to the server for the JSON data
-    // In this case we have a server-side route called /api/
-    // which responds to GET requests with the study data
-    console.log(`Sending Request to: ${segURL}`);
-    oReq.open('GET', segURL);
-    oReq.responseType = 'arraybuffer';
-
-    // Fire the request to the server
-    oReq.send();
-  });
-};
-
 class VTK4UPExample extends Component {
   state = {
     volumes: [],
@@ -189,17 +205,37 @@ class VTK4UPExample extends Component {
       imageId.includes(mrSeriesInstanceUID)
     );
 
-    const mrImageDataObject = loadDataset(mrImageIds, 'mrDisplaySet');
+    // Sort the imageIds so the SEG is allocated correctly.
+    mrImageIds.sort((imageIdA, imageIdB) => {
+      const imagePlaneA = cornerstone.metaData.get(
+        'imagePlaneModule',
+        imageIdA
+      );
+      const imagePlaneB = cornerstone.metaData.get(
+        'imagePlaneModule',
+        imageIdB
+      );
 
-    debugger;
+      return (
+        imagePlaneA.imagePositionPatient[0] -
+        imagePlaneB.imagePositionPatient[0]
+      );
+    });
+
+    const mrImageDataObject = loadDataset(mrImageIds, 'mrDisplaySet');
 
     const seg = await fetchSegArrayBuffer(segURL);
 
-    const segVol = await generateSegVolume(mrImageDataObject, seg, mrImageIds);
+    const { labelmapDataObject, labelmapColorLUT } = await generateSegVolume(
+      mrImageDataObject,
+      seg,
+      mrImageIds
+    );
 
     debugger;
 
     const onAllPixelDataInsertedCallback = () => {
+      // MR
       const mrImageData = mrImageDataObject.vtkImageData;
 
       const range = mrImageData
@@ -216,37 +252,73 @@ class VTK4UPExample extends Component {
       rgbTransferFunction.setRange(range[0], range[1]);
       mrVol.setMapper(mapper);
 
+      // SEG
+
+      const segRange = labelmapDataObject
+        .getPointData()
+        .getScalars()
+        .getRange();
+
+      const segMapper = vtkVolumeMapper.newInstance();
+      const segVol = vtkVolume.newInstance();
+
+      debugger;
+
+      const labelmapTransferFunctions = makeLabelMapColorTransferFunction(
+        labelmapColorLUT
+      );
+
+      const rgbTransferFunctionSeg = segVol
+        .getProperty()
+        .getRGBTransferFunction(0);
+
+      segVol
+        .getProperty()
+        .setRGBTransferFunction(0, labelmapTransferFunctions.cfun);
+      segVol.getProperty().setScalarOpacity(0, labelmapTransferFunctions.ofun);
+      segMapper.setInputData(labelmapDataObject);
+      segMapper.setMaximumSamplesPerRay(2000);
+      rgbTransferFunctionSeg.setRange(segRange[0], segRange[1]);
+      segVol.setMapper(segMapper);
+
+      debugger;
+
       this.setState({
         volumes: [mrVol],
+        volumeRenderingVolumes: [segVol],
+        paintFilterLabelMapImageData: labelmapDataObject,
+        paintFilterBackgroundImageData: mrImageDataObject.vtkImageData,
+        labelmapColorLUT,
       });
     };
 
     mrImageDataObject.onAllPixelDataInserted(onAllPixelDataInsertedCallback);
   }
 
-  storeApi = viewportIndex => {
+  storeApi = (viewportIndex, type) => {
     return api => {
       this.apis[viewportIndex] = api;
 
-      const apis = this.apis;
-      const renderWindow = api.genericRenderWindow.getRenderWindow();
+      if (type === '2D') {
+        const renderWindow = api.genericRenderWindow.getRenderWindow();
 
-      const istyle = vtkInteractorStyleMPRSlice.newInstance();
+        const istyle = vtkInteractorStyleMPRSlice.newInstance();
 
-      // add istyle
-      api.setInteractorStyle({
-        istyle,
-      });
+        // add istyle
+        api.setInteractorStyle({
+          istyle,
+        });
 
-      // set blend mode to MIP.
-      const mapper = api.volumes[0].getMapper();
-      if (mapper.setBlendModeToMaximumIntensity) {
-        mapper.setBlendModeToMaximumIntensity();
+        // set blend mode to MIP.
+        const mapper = api.volumes[0].getMapper();
+        if (mapper.setBlendModeToMaximumIntensity) {
+          mapper.setBlendModeToMaximumIntensity();
+        }
+
+        api.setSlabThickness(0.1);
+
+        renderWindow.render();
       }
-
-      api.setSlabThickness(0.1);
-
-      renderWindow.render();
     };
   };
 
@@ -267,6 +339,9 @@ class VTK4UPExample extends Component {
     if (!this.state.volumes || !this.state.volumes.length) {
       return <h4>Loading...</h4>;
     }
+
+    // Get labelmap rendering config
+    const { configuration } = segmentationModule;
 
     return (
       <>
@@ -300,10 +375,41 @@ class VTK4UPExample extends Component {
           <div className="col-sm-4">
             <View2D
               volumes={this.state.volumes}
-              onCreated={this.storeApi(1)}
+              onCreated={this.storeApi(0, '2D')}
+              orientation={{ sliceNormal: [1, 0, 0], viewUp: [0, 0, 1] }}
+              paintFilterLabelMapImageData={
+                this.state.paintFilterLabelMapImageData
+              }
+              paintFilterBackgroundImageData={
+                this.state.paintFilterBackgroundImageData
+              }
+              labelmapRenderingOptions={{
+                colorLUT: this.state.labelmapColorLUT,
+                globalOpacity: configuration.fillAlpha,
+                visible: configuration.renderFill,
+                outlineThickness: configuration.outlineWidth,
+                renderOutline: configuration.renderOutline,
+                segmentsDefaultProperties: [], // Its kinda dumb that this needs to be present.
+              }}
+            />
+          </div>
+          {/** TEST Seg in View2D, which we know works.
+          <div className="col-sm-4">
+            <View2D
+              volumes={this.state.volumeRenderingVolumes}
+              onCreated={this.storeApi(2)}
               orientation={{ sliceNormal: [1, 0, 0], viewUp: [0, 0, 1] }}
             />
           </div>
+          */}
+          {/** 3D  View*/}
+          <div className="col-sm-4">
+            <View3D
+              volumes={this.state.volumeRenderingVolumes}
+              onCreated={this.storeApi(1, '3D')}
+            />
+          </div>
+
           {/**
                     <div className="col-sm-4">
             <View2D
