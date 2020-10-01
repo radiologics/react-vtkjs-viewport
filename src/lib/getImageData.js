@@ -67,6 +67,8 @@ export default function getImageData(imageIds, displaySetInstanceUid) {
   const imageData = vtkImageData.newInstance();
   const direction = [...rowCosineVec, ...colCosineVec, ...scanAxisNormal];
 
+  debugger;
+
   imageData.setDimensions(xVoxels, yVoxels, zVoxels);
   imageData.setSpacing(xSpacing, ySpacing, zSpacing);
   imageData.setDirection(direction);

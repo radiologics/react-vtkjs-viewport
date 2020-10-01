@@ -226,6 +226,18 @@ class VTK4UPExample extends Component {
 
     const mrImageDataObject = loadDataset(mrImageIds, 'mrDisplaySet');
 
+    // As we are using an image mapper, set the direction to upright rather than correctly oriented in 3D.
+
+    // Note: You may have to work out which direction to set in OHIF.
+    // Also for the views I and J are in plane, and K is out of plane.
+    // This demo data is sagittal, you may have to perform some logic on scans to put then in
+    // The correct slots for a 4 Up
+    mrImageDataObject.vtkImageData.setDirection(
+      ...[1, 0, 0],
+      ...[0, -1, 0],
+      ...[0, 0, -1]
+    );
+
     const seg = await fetchSegArrayBuffer(segURL);
 
     const { labelmapDataObject, labelmapColorLUT } = await generateSegVolume(
@@ -237,30 +249,47 @@ class VTK4UPExample extends Component {
     const onAllPixelDataInsertedCallback = () => {
       // MR
       /////// Replace with image mapping. ///////
+
+      // Use one dataset, and 3 actors/mappers for the 3 different views
       const mrImageData = mrImageDataObject.vtkImageData;
-
-      // const imageMapperK = vtkImageMapper.newInstance();
-      // const imageActorK = vtkImageSlice.newInstance();
-
-      // imageMapperK.setInputData(mrImageData);
-      // imageMapperK.setKSlice(30); // TODO
-      // imageActorK.setMapper(imageMapperK);
-
-      // debugger;
 
       const range = mrImageData
         .getPointData()
         .getScalars()
         .getRange();
 
-      const mapper = vtkVolumeMapper.newInstance();
-      const mrVol = vtkVolume.newInstance();
-      const rgbTransferFunction = mrVol.getProperty().getRGBTransferFunction(0);
+      const windowWidth = Math.abs(range[1] - range[0]);
+      const windowLevel = range[0] + windowWidth / 2;
 
-      mapper.setInputData(mrImageData);
-      mapper.setMaximumSamplesPerRay(2000);
-      rgbTransferFunction.setRange(range[0], range[1]);
-      mrVol.setMapper(mapper);
+      // I
+      const imageMapperI = vtkImageMapper.newInstance();
+      const imageActorI = vtkImageSlice.newInstance();
+
+      imageMapperI.setInputData(mrImageData);
+      imageActorI.setMapper(imageMapperI);
+
+      imageActorI.getProperty().setColorWindow(windowWidth);
+      imageActorI.getProperty().setColorLevel(windowLevel);
+
+      // J
+      const imageMapperJ = vtkImageMapper.newInstance();
+      const imageActorJ = vtkImageSlice.newInstance();
+
+      imageMapperJ.setInputData(mrImageData);
+      imageActorJ.setMapper(imageMapperJ);
+
+      imageActorJ.getProperty().setColorWindow(windowWidth);
+      imageActorJ.getProperty().setColorLevel(windowLevel);
+
+      // K
+      const imageMapperK = vtkImageMapper.newInstance();
+      const imageActorK = vtkImageSlice.newInstance();
+
+      imageMapperK.setInputData(mrImageData);
+      imageActorK.setMapper(imageMapperK);
+
+      imageActorK.getProperty().setColorWindow(windowWidth);
+      imageActorK.getProperty().setColorLevel(windowLevel);
 
       ///////
 
@@ -292,8 +321,7 @@ class VTK4UPExample extends Component {
       segVol.setMapper(segMapper);
 
       this.setState({
-        //imageActors: [imageActorK],
-        volumes: [mrVol],
+        imageActors: { I: imageActorI, J: imageActorI, K: imageActorK },
         volumeRenderingVolumes: [segVol],
         paintFilterLabelMapImageData: labelmapDataObject,
         paintFilterBackgroundImageData: mrImageDataObject.vtkImageData,
@@ -323,9 +351,15 @@ class VTK4UPExample extends Component {
   };
 
   render() {
-    if (!this.state.volumes || !this.state.volumes.length) {
+    if (
+      !this.state.imageActors ||
+      !this.state.volumeRenderingVolumes ||
+      !this.state.volumeRenderingVolumes.length
+    ) {
       return <h4>Loading...</h4>;
     }
+
+    debugger;
 
     // Get labelmap rendering config
     const { configuration } = segmentationModule;
@@ -335,39 +369,55 @@ class VTK4UPExample extends Component {
         <div className="row">
           <div className="col-sm-4">
             <View2DImageMapper
-              volumes={this.state.volumes}
+              actors={[this.state.imageActors.I]}
               onCreated={this.storeApi(0, '2D')}
-              orientation={{ sliceNormal: [1, 0, 0], viewUp: [0, 0, 1] }}
+              orientation={'I'}
             />
-            {/** // Old View2D props
-                            paintFilterLabelMapImageData={
-                this.state.paintFilterLabelMapImageData
-              }
-              paintFilterBackgroundImageData={
-                this.state.paintFilterBackgroundImageData
-              }
-              labelmapRenderingOptions={{
-                colorLUT: this.state.labelmapColorLUT,
-                globalOpacity: configuration.fillAlpha,
-                visible: configuration.renderFill,
-                outlineThickness: configuration.outlineWidth,
-                renderOutline: configuration.renderOutline,
-                segmentsDefaultProperties: [], // Its kinda dumb that this needs to be present.
-              }}
-               */}
           </div>
-          {/** 3D  View
+          <div className="col-sm-4">
+            <View2DImageMapper
+              actors={[this.state.imageActors.J]}
+              onCreated={this.storeApi(1, '2D')}
+              orientation={'J'}
+            />
+          </div>
+        </div>
+        <div className="row">
+          <div className="col-sm-4">
+            <View2DImageMapper
+              actors={[this.state.imageActors.K]}
+              onCreated={this.storeApi(2, '2D')}
+              orientation={'K'}
+            />
+          </div>
+          {/** 3D  View*/}
           <div className="col-sm-4">
             <View3D
               volumes={this.state.volumeRenderingVolumes}
-              onCreated={this.storeApi(1, '3D')}
+              onCreated={this.storeApi(3, '3D')}
             />
           </div>
-          */}
         </div>
       </>
     );
   }
 }
+
+/** // Old View2D props
+paintFilterLabelMapImageData={
+  this.state.paintFilterLabelMapImageData
+}
+paintFilterBackgroundImageData={
+  this.state.paintFilterBackgroundImageData
+}
+labelmapRenderingOptions={{
+  colorLUT: this.state.labelmapColorLUT,
+  globalOpacity: configuration.fillAlpha,
+  visible: configuration.renderFill,
+  outlineThickness: configuration.outlineWidth,
+  renderOutline: configuration.renderOutline,
+  segmentsDefaultProperties: [], // Its kinda dumb that this needs to be present.
+}}
+*/
 
 export default VTK4UPExample;

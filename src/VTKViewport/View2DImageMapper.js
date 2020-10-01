@@ -2,24 +2,23 @@ import React, { Component } from 'react';
 import PropTypes from 'prop-types';
 import vtkGenericRenderWindow from 'vtk.js/Sources/Rendering/Misc/GenericRenderWindow';
 import vtkWidgetManager from 'vtk.js/Sources/Widgets/Core/WidgetManager';
-import vtkInteractorStyleMPRSlice from './vtkInteractorStyleMPRSlice';
+import vtkImageMapper from 'vtk.js/Sources/Rendering/Core/ImageMapper';
+import vtkInteractorStyleImage from 'vtk.js/Sources/Interaction/Style/InteractorStyleImage';
 import vtkSVGWidgetManager from './vtkSVGWidgetManager';
 import ViewportOverlay from '../ViewportOverlay/ViewportOverlay.js';
 import { createSub } from '../lib/createSub.js';
 import { uuidv4 } from './../helpers';
-import setGlobalOpacity from './setGlobalOpacity';
 
-export default class View2D extends Component {
+export default class View2DImageMapper extends Component {
   static propTypes = {
-    volumes: PropTypes.array.isRequired,
     actors: PropTypes.array,
     dataDetails: PropTypes.object,
     onCreated: PropTypes.func,
     onDestroyed: PropTypes.func,
-    orientation: PropTypes.object,
+    orientation: PropTypes.string.isRequired,
   };
 
-  static defaultProps = {};
+  static defaultProps = { orientation: 'K' };
 
   constructor(props) {
     super(props);
@@ -34,7 +33,7 @@ export default class View2D extends Component {
     };
     this.interactorStyleSubs = [];
     this.state = {
-      voi: this.getVOI(props.volumes[0]),
+      voi: this.getVOI(props.actors[0]),
     };
 
     this.apiProperties = {};
@@ -52,13 +51,11 @@ export default class View2D extends Component {
 
     let widgets = [];
     let filters = [];
-    let actors = [];
-    let volumes = [];
+    let actors = this.props.actors;
 
-    const radius = 5;
-    const label = 1;
+    const renderer = this.genericRenderWindow.getRenderer();
 
-    this.renderer = this.genericRenderWindow.getRenderer();
+    this.renderer = renderer;
     this.renderWindow = this.genericRenderWindow.getRenderWindow();
     const oglrw = this.genericRenderWindow.getOpenGLRenderWindow();
 
@@ -66,41 +63,65 @@ export default class View2D extends Component {
     // the vtkOpenGLRenderer instance.
     oglrw.buildPass(true);
 
-    const istyle = vtkInteractorStyleMPRSlice.newInstance();
-    this.renderWindow.getInteractor().setInteractorStyle(istyle);
+    const iStyle = vtkInteractorStyleImage.newInstance();
 
-    // TODO unsubscribe from this before component unmounts.
+    iStyle.setInteractionMode('IMAGE_SLICING');
+    this.renderWindow.getInteractor().setInteractorStyle(iStyle);
 
     this.widgetManager.disablePicking();
 
     // trigger pipeline update
     this.componentDidUpdate({});
 
-    if (this.labelmap && this.labelmap.actor) {
-      actors = actors.concat(this.labelmap.actor);
+    // Add all actors to renderer
+    actors.forEach(actor => {
+      renderer.addViewProp(actor);
+    });
+
+    // Use orientation prob to set slice direction
+
+    let sliceMode;
+
+    const imageActor = actors[0];
+    const imageMapper = imageActor.getMapper();
+    const actorVTKImageData = imageMapper.getInputData();
+    const dimensions = actorVTKImageData.getDimensions();
+
+    let dimensionsOfSliceDirection;
+
+    const { orientation } = this.props;
+
+    switch (orientation) {
+      case 'I':
+        sliceMode = vtkImageMapper.SlicingMode.I;
+        dimensionsOfSliceDirection = dimensions[0];
+        break;
+      case 'J':
+        sliceMode = vtkImageMapper.SlicingMode.J;
+        dimensionsOfSliceDirection = dimensions[1];
+        break;
+      case 'K':
+        sliceMode = vtkImageMapper.SlicingMode.K;
+        dimensionsOfSliceDirection = dimensions[2];
+        break;
     }
 
-    if (this.props.volumes) {
-      volumes = volumes.concat(this.props.volumes);
-    }
+    // TODO -> Deal with label volume
 
-    // Set orientation based on props
-    if (this.props.orientation) {
-      const { orientation } = this.props;
+    // Default slice orientation/mode and camera view
+    imageMapper.setSlicingMode(sliceMode);
 
-      istyle.setSliceOrientation(orientation.sliceNormal, orientation.viewUp);
-    } else {
-      istyle.setSliceNormal(0, 0, 1);
-    }
+    // Set middle slice.
+    imageMapper.setSlice(Math.floor(dimensionsOfSliceDirection / 2));
+
+    // Set up camera
 
     const camera = this.renderer.getActiveCamera();
 
     camera.setParallelProjection(true);
-    this.renderer.resetCamera();
 
-    istyle.setVolumeActor(this.props.volumes[0]);
-    const range = istyle.getSliceRange();
-    istyle.setSlice((range[0] + range[1]) / 2);
+    // set 2D camera position
+    this.setCamera(sliceMode, renderer, actorVTKImageData);
 
     const svgWidgetManager = vtkSVGWidgetManager.newInstance();
 
@@ -110,7 +131,10 @@ export default class View2D extends Component {
     this.svgWidgetManager = svgWidgetManager;
 
     // TODO: Not sure why this is necessary to force the initial draw
+    this.renderer.resetCamera();
     this.genericRenderWindow.resize();
+
+    this.renderWindow.render();
 
     const boundUpdateVOI = this.updateVOI.bind(this);
     const boundGetOrienation = this.getOrientation.bind(this);
@@ -118,16 +142,8 @@ export default class View2D extends Component {
     const boundAddSVGWidget = this.addSVGWidget.bind(this);
     const boundGetApiProperty = this.getApiProperty.bind(this);
     const boundSetApiProperty = this.setApiProperty.bind(this);
-    const boundSetSegmentRGB = this.setSegmentRGB.bind(this);
-    const boundSetSegmentRGBA = this.setSegmentRGBA.bind(this);
-    const boundSetSegmentAlpha = this.setSegmentAlpha.bind(this);
+    const boundSetCamera = this.setCamera.bind(this);
     const boundUpdateImage = this.updateImage.bind(this);
-    const boundSetSegmentVisibility = this.setSegmentVisibility.bind(this);
-    const boundSetGlobalOpacity = this.setGlobalOpacity.bind(this);
-    const boundSetVisibility = this.setVisibility.bind(this);
-    const boundSetOutlineThickness = this.setOutlineThickness.bind(this);
-    const boundOutlineRendering = this.setOutlineRendering.bind(this);
-    const boundRequestNewSegmentation = this.requestNewSegmentation.bind(this);
 
     this.svgWidgets = {};
 
@@ -148,21 +164,12 @@ export default class View2D extends Component {
         svgWidgets: this.svgWidgets,
         filters,
         actors,
-        volumes,
         _component: this,
         updateImage: boundUpdateImage,
         updateVOI: boundUpdateVOI,
         getOrientation: boundGetOrienation,
         setInteractorStyle: boundSetInteractorStyle,
-        setSegmentRGB: boundSetSegmentRGB,
-        setSegmentRGBA: boundSetSegmentRGBA,
-        setSegmentAlpha: boundSetSegmentAlpha,
-        setSegmentVisibility: boundSetSegmentVisibility,
-        setGlobalOpacity: boundSetGlobalOpacity,
-        setVisibility: boundSetVisibility,
-        setOutlineThickness: boundSetOutlineThickness,
-        setOutlineRendering: boundOutlineRendering,
-        requestNewSegmentation: boundRequestNewSegmentation,
+        setCamera: boundSetCamera,
         get: boundGetApiProperty,
         set: boundSetApiProperty,
         type: 'VIEW2D',
@@ -257,59 +264,6 @@ export default class View2D extends Component {
     return this.props.orientation;
   }
 
-  setSegmentRGBA(segmentIndex, [red, green, blue, alpha]) {
-    this.setSegmentRGB(segmentIndex, [red, green, blue]);
-    this.setSegmentAlpha(segmentIndex, alpha);
-  }
-
-  setGlobalOpacity(globalOpacity) {
-    const { labelmap } = this;
-    const colorLUT = this.props.labelmapRenderingOptions.colorLUT;
-    setGlobalOpacity(labelmap, colorLUT, globalOpacity);
-  }
-
-  setVisibility(visible) {
-    const { labelmap } = this;
-    labelmap.actor.setVisibility(visible);
-  }
-
-  setOutlineThickness(outlineThickness) {
-    const { labelmap } = this;
-    labelmap.actor.getProperty().setLabelOutlineThickness(outlineThickness);
-  }
-
-  setOutlineRendering(renderOutline) {
-    const { labelmap } = this;
-    labelmap.actor.getProperty().setUseLabelOutline(renderOutline);
-  }
-
-  requestNewSegmentation() {
-    this.props.labelmapRenderingOptions.onNewSegmentationRequested();
-  }
-
-  setSegmentRGB(segmentIndex, [red, green, blue]) {
-    const { labelmap } = this;
-
-    labelmap.cfun.addRGBPoint(segmentIndex, red / 255, green / 255, blue / 255);
-  }
-
-  setSegmentVisibility(segmentIndex, isVisible) {
-    this.setSegmentAlpha(segmentIndex, isVisible ? 255 : 0);
-  }
-
-  setSegmentAlpha(segmentIndex, alpha) {
-    const { labelmap } = this;
-    let { globalOpacity } = this.props.labelmapRenderingOptions;
-
-    if (globalOpacity === undefined) {
-      globalOpacity = 1.0;
-    }
-
-    const segmentOpacity = (alpha / 255) * globalOpacity;
-
-    labelmap.ofun.addPointLong(segmentIndex, segmentOpacity, 0.5, 1.0);
-  }
-
   componentDidUpdate(prevProps) {
     if (prevProps.volumes !== this.props.volumes) {
       this.props.volumes.forEach(volume => {
@@ -328,6 +282,17 @@ export default class View2D extends Component {
     }
   }
 
+  setCamera(sliceMode, renderer, data) {
+    const ijk = [0, 0, 0];
+    const position = [0, 0, 0];
+    const focalPoint = [0, 0, 0];
+    data.indexToWorldVec3(ijk, focalPoint);
+    ijk[sliceMode] = 1;
+    data.indexToWorldVec3(ijk, position);
+    renderer.getActiveCamera().set({ focalPoint, position });
+    renderer.resetCamera();
+  }
+
   componentWillUnmount() {
     Object.keys(this.subs).forEach(k => {
       this.subs[k].unsubscribe();
@@ -343,13 +308,8 @@ export default class View2D extends Component {
   getVOI = actor => {
     // Note: This controls window/level
 
-    // TODO: Make this work reactively with onModified...
-
-    debugger;
-    const rgbTransferFunction = actor.getProperty().getRGBTransferFunction(0);
-    const range = rgbTransferFunction.getMappingRange();
-    const windowWidth = Math.abs(range[1] - range[0]);
-    const windowCenter = range[0] + windowWidth / 2;
+    const windowCenter = actor.getProperty().getColorLevel();
+    const windowWidth = actor.getProperty().getColorWindow();
 
     return {
       windowCenter,
@@ -358,7 +318,7 @@ export default class View2D extends Component {
   };
 
   render() {
-    if (!this.props.volumes || !this.props.volumes.length) {
+    if (!this.props.actors || !this.props.actors.length) {
       return null;
     }
 
