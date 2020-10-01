@@ -272,37 +272,20 @@ class VTK4UPExample extends Component {
       const windowWidth = Math.abs(range[1] - range[0]);
       const windowLevel = range[0] + windowWidth / 2;
 
-      // I
-      const imageMapperI = vtkImageMapper.newInstance();
-      const imageActorI = vtkImageSlice.newInstance();
+      const imageActors = [];
 
-      imageMapperI.setInputData(mrImageData);
-      imageActorI.setMapper(imageMapperI);
+      for (let i = 0; i < 3; i++) {
+        const imageMapper = vtkImageMapper.newInstance();
+        const imageActor = vtkImageSlice.newInstance();
 
-      imageActorI.getProperty().setColorWindow(windowWidth);
-      imageActorI.getProperty().setColorLevel(windowLevel);
+        imageMapper.setInputData(mrImageData);
+        imageActor.setMapper(imageMapper);
 
-      // J
-      const imageMapperJ = vtkImageMapper.newInstance();
-      const imageActorJ = vtkImageSlice.newInstance();
+        imageActor.getProperty().setColorWindow(windowWidth);
+        imageActor.getProperty().setColorLevel(windowLevel);
 
-      imageMapperJ.setInputData(mrImageData);
-      imageActorJ.setMapper(imageMapperJ);
-
-      imageActorJ.getProperty().setColorWindow(windowWidth);
-      imageActorJ.getProperty().setColorLevel(windowLevel);
-
-      // K
-      const imageMapperK = vtkImageMapper.newInstance();
-      const imageActorK = vtkImageSlice.newInstance();
-
-      imageMapperK.setInputData(mrImageData);
-      imageActorK.setMapper(imageMapperK);
-
-      imageActorK.getProperty().setColorWindow(windowWidth);
-      imageActorK.getProperty().setColorLevel(windowLevel);
-
-      ///////
+        imageActors.push(imageActor);
+      }
 
       // SEG
 
@@ -341,66 +324,66 @@ class VTK4UPExample extends Component {
       labelmapOFun.addPoint(0.5, 1);
       labelmapOFun.addPoint(1, 1);
 
-      // labelmapActorI
-
-      const labelmapMapperI = vtkImageMapper.newInstance();
-      const labelmapActorI = vtkImageSlice.newInstance();
+      const labelmapActors = [];
 
       outline.setInputData(labelmapDataObject);
       outline.setSlicingMode(2);
 
-      labelmapMapperI.setInputData(outline.getOutputData());
-      labelmapActorI.setMapper(labelmapMapperI);
-      labelmapActorI.getProperty().setInterpolationType(0);
+      for (let i = 0; i < 3; i++) {
+        const labelmapMapper = vtkImageMapper.newInstance();
+        const labelmapActor = vtkImageSlice.newInstance();
 
-      labelmapActorI
-        .getProperty()
-        .setRGBTransferFunction(labelmapTransferFunctions.cfun);
+        labelmapMapper.setInputData(outline.getOutputData());
+        labelmapActor.setMapper(labelmapMapper);
+        labelmapActor.getProperty().setInterpolationType(0);
 
-      labelmapActorI.getProperty().setScalarOpacity(labelmapOFun);
+        labelmapActor
+          .getProperty()
+          .setRGBTransferFunction(labelmapTransferFunctions.cfun);
 
-      // labelmapActorJ
+        labelmapActor.getProperty().setScalarOpacity(labelmapOFun);
 
-      const labelmapMapperJ = vtkImageMapper.newInstance();
-      const labelmapActorJ = vtkImageSlice.newInstance();
+        labelmapActors.push(labelmapActor);
+      }
 
-      outline.setInputData(labelmapDataObject);
-      outline.setSlicingMode(2);
+      const labelmapFillOFun = vtkPiecewiseFunction.newInstance();
 
-      labelmapMapperJ.setInputData(outline.getOutputData());
-      labelmapActorJ.setMapper(labelmapMapperJ);
-      labelmapActorJ.getProperty().setInterpolationType(0);
+      labelmapFillOFun.addPoint(0, 0); // our background value, 0, will be invisible
+      labelmapFillOFun.addPoint(0.5, 0.1);
+      labelmapFillOFun.addPoint(1, 0.2);
 
-      labelmapActorJ
-        .getProperty()
-        .setRGBTransferFunction(labelmapTransferFunctions.cfun);
+      const labelmapFillActors = [];
 
-      labelmapActorJ.getProperty().setScalarOpacity(labelmapOFun);
+      for (let i = 0; i < 3; i++) {
+        const labelmapFillMapper = vtkImageMapper.newInstance();
+        const labelmapFillActor = vtkImageSlice.newInstance();
 
-      // labelmapActorK
+        labelmapFillMapper.setInputData(labelmapDataObject);
+        labelmapFillActor.setMapper(labelmapFillMapper);
+        labelmapFillActor.getProperty().setInterpolationType(0);
 
-      const labelmapMapperK = vtkImageMapper.newInstance();
-      const labelmapActorK = vtkImageSlice.newInstance();
+        labelmapFillActor
+          .getProperty()
+          .setRGBTransferFunction(labelmapTransferFunctions.cfun);
 
-      outline.setInputData(labelmapDataObject);
-      outline.setSlicingMode(2);
+        labelmapFillActor.getProperty().setScalarOpacity(labelmapFillOFun);
 
-      labelmapMapperK.setInputData(outline.getOutputData());
-      labelmapActorK.setMapper(labelmapMapperK);
-      labelmapActorK.getProperty().setInterpolationType(0);
-
-      labelmapActorK
-        .getProperty()
-        .setRGBTransferFunction(labelmapTransferFunctions.cfun);
-
-      labelmapActorK.getProperty().setScalarOpacity(labelmapOFun);
+        labelmapFillActors.push(labelmapFillActor);
+      }
 
       this.setState({
-        imageActors: { I: imageActorI, J: imageActorI, K: imageActorK },
+        imageActors: {
+          I: imageActors[0],
+          J: imageActors[1],
+          K: imageActors[2],
+        },
         labelmapActors: {
-          I: labelmapActorI,
-          J: labelmapActorJ,
-          K: labelmapActorK,
+          I: labelmapActors[0],
+          IFill: labelmapFillActors[0],
+          J: labelmapActors[1],
+          JFill: labelmapFillActors[1],
+          K: labelmapActors[2],
+          KFill: labelmapFillActors[1],
         },
         volumeRenderingVolumes: [segVol],
         paintFilterLabelMapImageData: labelmapDataObject,
@@ -440,6 +423,8 @@ class VTK4UPExample extends Component {
       return <h4>Loading...</h4>;
     }
 
+    debugger;
+
     // Get labelmap rendering config
     const { configuration } = segmentationModule;
 
@@ -449,7 +434,10 @@ class VTK4UPExample extends Component {
           <div className="col-sm-4">
             <View2DImageMapper
               actors={[this.state.imageActors.I, this.state.labelmapActors.I]}
-              labelmapActors={[this.state.labelmapActors.I]}
+              labelmapActors={[
+                this.state.labelmapActors.IFill,
+                this.state.labelmapActors.I,
+              ]}
               onCreated={this.storeApi(0, '2D')}
               orientation={'I'}
             />
@@ -457,7 +445,10 @@ class VTK4UPExample extends Component {
           <div className="col-sm-4">
             <View2DImageMapper
               actors={[this.state.imageActors.J]}
-              labelmapActors={[this.state.labelmapActors.J]}
+              labelmapActors={[
+                this.state.labelmapActors.JFill,
+                this.state.labelmapActors.J,
+              ]}
               onCreated={this.storeApi(1, '2D')}
               orientation={'J'}
             />
@@ -467,7 +458,10 @@ class VTK4UPExample extends Component {
           <div className="col-sm-4">
             <View2DImageMapper
               actors={[this.state.imageActors.K]}
-              labelmapActors={[this.state.labelmapActors.K]}
+              labelmapActors={[
+                this.state.labelmapActors.KFill,
+                this.state.labelmapActors.K,
+              ]}
               onCreated={this.storeApi(2, '2D')}
               orientation={'K'}
             />
@@ -484,22 +478,5 @@ class VTK4UPExample extends Component {
     );
   }
 }
-
-/** // Old View2D props
-paintFilterLabelMapImageData={
-  this.state.paintFilterLabelMapImageData
-}
-paintFilterBackgroundImageData={
-  this.state.paintFilterBackgroundImageData
-}
-labelmapRenderingOptions={{
-  colorLUT: this.state.labelmapColorLUT,
-  globalOpacity: configuration.fillAlpha,
-  visible: configuration.renderFill,
-  outlineThickness: configuration.outlineWidth,
-  renderOutline: configuration.renderOutline,
-  segmentsDefaultProperties: [], // Its kinda dumb that this needs to be present.
-}}
-*/
 
 export default VTK4UPExample;
