@@ -1,6 +1,7 @@
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
 import vtkGenericRenderWindow from 'vtk.js/Sources/Rendering/Misc/GenericRenderWindow';
+import vtkRenderer from 'vtk.js/Sources/Rendering/Core/Renderer';
 import vtkWidgetManager from 'vtk.js/Sources/Widgets/Core/WidgetManager';
 import vtkImageMapper from 'vtk.js/Sources/Rendering/Core/ImageMapper';
 import vtkInteractorStyleImage from 'vtk.js/Sources/Interaction/Style/InteractorStyleImage';
@@ -48,16 +49,28 @@ export default class View2DImageMapper extends Component {
     });
 
     this.genericRenderWindow.setContainer(this.container.current);
+    this.renderWindow = this.genericRenderWindow.getRenderWindow();
 
     let widgets = [];
     let filters = [];
     let actors = this.props.actors;
+    let labelmapActors = this.props.labelmapActors;
 
     const renderer = this.genericRenderWindow.getRenderer();
 
     this.renderer = renderer;
     this.renderWindow = this.genericRenderWindow.getRenderWindow();
     const oglrw = this.genericRenderWindow.getOpenGLRenderWindow();
+
+    // Add labelmap only renderer so we can interact with source data
+    this.labelmapRenderer = vtkRenderer.newInstance();
+
+    const labelmapRenderer = this.labelmapRenderer;
+
+    this.renderWindow.addRenderer(this.labelmapRenderer);
+    this.renderWindow.setNumberOfLayers(2);
+    labelmapRenderer.setLayer(1);
+    labelmapRenderer.setInteractive(false);
 
     // update view node tree so that vtkOpenGLHardwareSelector can access
     // the vtkOpenGLRenderer instance.
@@ -68,7 +81,28 @@ export default class View2DImageMapper extends Component {
     iStyle.setInteractionMode('IMAGE_SLICING');
     this.renderWindow.getInteractor().setInteractorStyle(iStyle);
 
+    const inter = this.renderWindow.getInteractor();
+    const updateCameras = () => {
+      const baseCamera = this.renderer.getActiveCamera();
+      const labelmapCamera = this.labelmapRenderer.getActiveCamera();
+
+      const position = baseCamera.getReferenceByName('position');
+      const focalPoint = baseCamera.getReferenceByName('focalPoint');
+      const viewUp = baseCamera.getReferenceByName('viewUp');
+      const viewAngle = baseCamera.getReferenceByName('viewAngle');
+
+      labelmapCamera.set({
+        position,
+        focalPoint,
+        viewUp,
+        viewAngle,
+      });
+    };
+    // TODO unsubscribe from this before component unmounts.
+    inter.onAnimation(updateCameras);
+
     this.widgetManager.disablePicking();
+    this.widgetManager.setRenderer(this.labelmapRenderer);
 
     // trigger pipeline update
     this.componentDidUpdate({});
@@ -76,6 +110,10 @@ export default class View2DImageMapper extends Component {
     // Add all actors to renderer
     actors.forEach(actor => {
       renderer.addViewProp(actor);
+    });
+
+    labelmapActors.forEach(actor => {
+      labelmapRenderer.addViewProp(actor);
     });
 
     let sliceMode;
@@ -105,6 +143,7 @@ export default class View2DImageMapper extends Component {
         break;
     }
 
+    // Set source data
     actors.forEach(actor => {
       // Set slice orientation/mode and camera view
       actor.getMapper().setSlicingMode(sliceMode);
@@ -113,10 +152,19 @@ export default class View2DImageMapper extends Component {
       actor.getMapper().setSlice(Math.floor(dimensionsOfSliceDirection / 2));
     });
 
-    const secondaryActors = actors.slice(1);
-    // updateSlices when the object is made.
+    // Set labelmaps
+    labelmapActors.forEach(actor => {
+      // Set slice orientation/mode and camera view
+      actor.getMapper().setSlicingMode(sliceMode);
+
+      // Set middle slice.
+      actor.getMapper().setSlice(Math.floor(dimensionsOfSliceDirection / 2));
+    });
+
+    // Update slices of labelmaps when source data slice changed
     imageMapper.onModified(() => {
-      secondaryActors.forEach(actor => {
+      debugger;
+      labelmapActors.forEach(actor => {
         actor.getMapper().setSlice(imageMapper.getSlice());
       });
     });
@@ -139,7 +187,10 @@ export default class View2DImageMapper extends Component {
 
     // TODO: Not sure why this is necessary to force the initial draw
     this.renderer.resetCamera();
+    this.labelmapRenderer.resetCamera();
     this.genericRenderWindow.resize();
+
+    updateCameras();
 
     this.renderWindow.render();
 

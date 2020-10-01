@@ -440,8 +440,6 @@ class VTK4UPExample extends Component {
       return <h4>Loading...</h4>;
     }
 
-    debugger;
-
     // Get labelmap rendering config
     const { configuration } = segmentationModule;
 
@@ -451,13 +449,15 @@ class VTK4UPExample extends Component {
           <div className="col-sm-4">
             <View2DImageMapper
               actors={[this.state.imageActors.I, this.state.labelmapActors.I]}
+              labelmapActors={[this.state.labelmapActors.I]}
               onCreated={this.storeApi(0, '2D')}
               orientation={'I'}
             />
           </div>
           <div className="col-sm-4">
             <View2DImageMapper
-              actors={[this.state.imageActors.J, this.state.labelmapActors.J]}
+              actors={[this.state.imageActors.J]}
+              labelmapActors={[this.state.labelmapActors.J]}
               onCreated={this.storeApi(1, '2D')}
               orientation={'J'}
             />
@@ -466,7 +466,8 @@ class VTK4UPExample extends Component {
         <div className="row">
           <div className="col-sm-4">
             <View2DImageMapper
-              actors={[this.state.imageActors.K, this.state.labelmapActors.K]}
+              actors={[this.state.imageActors.K]}
+              labelmapActors={[this.state.labelmapActors.K]}
               onCreated={this.storeApi(2, '2D')}
               orientation={'K'}
             />
