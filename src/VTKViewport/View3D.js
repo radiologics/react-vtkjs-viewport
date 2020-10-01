@@ -134,8 +134,13 @@ export default class View3D extends Component {
     if (prevProps.volumes !== this.props.volumes) {
       this.props.volumes.forEach(volume => {
         if (!volume.isA('vtkVolume')) {
-          console.warn('Data to <Vtk2D> is not vtkVolume data');
+          console.warn('Data to <Vtk3D> is not vtkVolume data');
         }
+        volume.getProperty().setShade(true);
+        volume.getProperty().setAmbient(0.2);
+        volume.getProperty().setDiffuse(0.7);
+        volume.getProperty().setSpecular(0.3);
+        volume.getProperty().setSpecularPower(8.0);
       });
 
       if (this.props.volumes.length) {
@@ -150,7 +155,7 @@ export default class View3D extends Component {
     if (prevProps.actors !== this.props.actors && this.props.actors) {
       this.props.actors.forEach(actor => {
         if (!actor.isA('vtkActor')) {
-          console.warn('Data to <Vtk2D> is not vtkActor data');
+          console.warn('Data to <Vtk3D> is not vtkActor data');
         }
       });
 
