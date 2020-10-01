@@ -18,6 +18,7 @@ import vtkDataArray from 'vtk.js/Sources/Common/Core/DataArray';
 import cornerstoneTools from 'cornerstone-tools';
 import vtkColorTransferFunction from 'vtk.js/Sources/Rendering/Core/ColorTransferFunction';
 import vtkPiecewiseFunction from 'vtk.js/Sources/Common/DataModel/PiecewiseFunction';
+import vtkImageOutlineFilter from 'vtk.js/Sources/Filters/General/ImageOutlineFilter';
 
 const segmentationModule = cornerstoneTools.getModule('segmentation');
 
@@ -148,9 +149,19 @@ const generateSegVolume = async (
   // Create VTK Image Data with buffer as input
   const labelmapDataObject = vtkImageData.newInstance();
 
+  // Set all labels the same, so this is more similar to our example.
+
+  const Uint16LabelmapBuffer = new Uint16Array(labelmapBuffer);
+
+  for (let i = 0; i < Uint16LabelmapBuffer.length; i++) {
+    if (Uint16LabelmapBuffer[i] !== 0) {
+      Uint16LabelmapBuffer[i] = 1;
+    }
+  }
+
   const dataArray = vtkDataArray.newInstance({
     numberOfComponents: 1, // labelmap with single component
-    values: new Uint16Array(labelmapBuffer),
+    values: Uint16LabelmapBuffer,
   });
 
   labelmapDataObject.getPointData().setScalars(dataArray);
@@ -320,8 +331,77 @@ class VTK4UPExample extends Component {
       rgbTransferFunctionSeg.setRange(segRange[0], segRange[1]);
       segVol.setMapper(segMapper);
 
+      // labelmapActors for 2D views
+
+      const outline = vtkImageOutlineFilter.newInstance();
+      // opacity function for the outline filter
+      const labelmapOFun = vtkPiecewiseFunction.newInstance();
+
+      labelmapOFun.addPoint(0, 0); // our background value, 0, will be invisible
+      labelmapOFun.addPoint(0.5, 1);
+      labelmapOFun.addPoint(1, 1);
+
+      // labelmapActorI
+
+      const labelmapMapperI = vtkImageMapper.newInstance();
+      const labelmapActorI = vtkImageSlice.newInstance();
+
+      outline.setInputData(labelmapDataObject);
+      outline.setSlicingMode(2);
+
+      labelmapMapperI.setInputData(outline.getOutputData());
+      labelmapActorI.setMapper(labelmapMapperI);
+      labelmapActorI.getProperty().setInterpolationType(0);
+
+      labelmapActorI
+        .getProperty()
+        .setRGBTransferFunction(labelmapTransferFunctions.cfun);
+
+      labelmapActorI.getProperty().setScalarOpacity(labelmapOFun);
+
+      // labelmapActorJ
+
+      const labelmapMapperJ = vtkImageMapper.newInstance();
+      const labelmapActorJ = vtkImageSlice.newInstance();
+
+      outline.setInputData(labelmapDataObject);
+      outline.setSlicingMode(2);
+
+      labelmapMapperJ.setInputData(outline.getOutputData());
+      labelmapActorJ.setMapper(labelmapMapperJ);
+      labelmapActorJ.getProperty().setInterpolationType(0);
+
+      labelmapActorJ
+        .getProperty()
+        .setRGBTransferFunction(labelmapTransferFunctions.cfun);
+
+      labelmapActorJ.getProperty().setScalarOpacity(labelmapOFun);
+
+      // labelmapActorK
+
+      const labelmapMapperK = vtkImageMapper.newInstance();
+      const labelmapActorK = vtkImageSlice.newInstance();
+
+      outline.setInputData(labelmapDataObject);
+      outline.setSlicingMode(2);
+
+      labelmapMapperK.setInputData(outline.getOutputData());
+      labelmapActorK.setMapper(labelmapMapperK);
+      labelmapActorK.getProperty().setInterpolationType(0);
+
+      labelmapActorK
+        .getProperty()
+        .setRGBTransferFunction(labelmapTransferFunctions.cfun);
+
+      labelmapActorK.getProperty().setScalarOpacity(labelmapOFun);
+
       this.setState({
         imageActors: { I: imageActorI, J: imageActorI, K: imageActorK },
+        labelmapActors: {
+          I: labelmapActorI,
+          J: labelmapActorJ,
+          K: labelmapActorK,
+        },
         volumeRenderingVolumes: [segVol],
         paintFilterLabelMapImageData: labelmapDataObject,
         paintFilterBackgroundImageData: mrImageDataObject.vtkImageData,
@@ -353,6 +433,7 @@ class VTK4UPExample extends Component {
   render() {
     if (
       !this.state.imageActors ||
+      !this.state.labelmapActors ||
       !this.state.volumeRenderingVolumes ||
       !this.state.volumeRenderingVolumes.length
     ) {
@@ -369,14 +450,14 @@ class VTK4UPExample extends Component {
         <div className="row">
           <div className="col-sm-4">
             <View2DImageMapper
-              actors={[this.state.imageActors.I]}
+              actors={[this.state.imageActors.I, this.state.labelmapActors.I]}
               onCreated={this.storeApi(0, '2D')}
               orientation={'I'}
             />
           </div>
           <div className="col-sm-4">
             <View2DImageMapper
-              actors={[this.state.imageActors.J]}
+              actors={[this.state.imageActors.J, this.state.labelmapActors.J]}
               onCreated={this.storeApi(1, '2D')}
               orientation={'J'}
             />
@@ -385,7 +466,7 @@ class VTK4UPExample extends Component {
         <div className="row">
           <div className="col-sm-4">
             <View2DImageMapper
-              actors={[this.state.imageActors.K]}
+              actors={[this.state.imageActors.K, this.state.labelmapActors.K]}
               onCreated={this.storeApi(2, '2D')}
               orientation={'K'}
             />
