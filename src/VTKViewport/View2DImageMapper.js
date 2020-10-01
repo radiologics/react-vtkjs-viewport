@@ -105,9 +105,6 @@ export default class View2DImageMapper extends Component {
     this.widgetManager.disablePicking();
     this.widgetManager.setRenderer(this.labelmapRenderer);
 
-    // trigger pipeline update
-    this.componentDidUpdate({});
-
     // Add all actors to renderer
     actors.forEach(actor => {
       renderer.addViewProp(actor);
