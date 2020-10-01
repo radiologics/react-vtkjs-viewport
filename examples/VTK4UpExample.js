@@ -2,12 +2,14 @@ import React from 'react';
 import { Component } from 'react';
 import dcmjs from 'dcmjs';
 import {
-  View2D,
+  View2DImageMapper,
   View3D,
   getImageData,
   loadImageData,
   vtkInteractorStyleMPRSlice,
 } from '@vtk-viewport';
+import vtkImageMapper from 'vtk.js/Sources/Rendering/Core/ImageMapper';
+import vtkImageSlice from 'vtk.js/Sources/Rendering/Core/ImageSlice';
 import { api as dicomwebClientApi } from 'dicomweb-client';
 import vtkVolume from 'vtk.js/Sources/Rendering/Core/Volume';
 import vtkVolumeMapper from 'vtk.js/Sources/Rendering/Core/VolumeMapper';
@@ -193,7 +195,7 @@ async function fetchSegArrayBuffer(url) {
 
 class VTK4UPExample extends Component {
   state = {
-    volumes: [],
+    imageMappers: [],
   };
 
   async componentDidMount() {
@@ -232,11 +234,19 @@ class VTK4UPExample extends Component {
       mrImageIds
     );
 
-    debugger;
-
     const onAllPixelDataInsertedCallback = () => {
       // MR
+      /////// Replace with image mapping. ///////
       const mrImageData = mrImageDataObject.vtkImageData;
+
+      // const imageMapperK = vtkImageMapper.newInstance();
+      // const imageActorK = vtkImageSlice.newInstance();
+
+      // imageMapperK.setInputData(mrImageData);
+      // imageMapperK.setKSlice(30); // TODO
+      // imageActorK.setMapper(imageMapperK);
+
+      // debugger;
 
       const range = mrImageData
         .getPointData()
@@ -252,6 +262,8 @@ class VTK4UPExample extends Component {
       rgbTransferFunction.setRange(range[0], range[1]);
       mrVol.setMapper(mapper);
 
+      ///////
+
       // SEG
 
       const segRange = labelmapDataObject
@@ -261,8 +273,6 @@ class VTK4UPExample extends Component {
 
       const segMapper = vtkVolumeMapper.newInstance();
       const segVol = vtkVolume.newInstance();
-
-      debugger;
 
       const labelmapTransferFunctions = makeLabelMapColorTransferFunction(
         labelmapColorLUT
@@ -281,9 +291,8 @@ class VTK4UPExample extends Component {
       rgbTransferFunctionSeg.setRange(segRange[0], segRange[1]);
       segVol.setMapper(segMapper);
 
-      debugger;
-
       this.setState({
+        //imageActors: [imageActorK],
         volumes: [mrVol],
         volumeRenderingVolumes: [segVol],
         paintFilterLabelMapImageData: labelmapDataObject,
@@ -300,40 +309,18 @@ class VTK4UPExample extends Component {
       this.apis[viewportIndex] = api;
 
       if (type === '2D') {
-        const renderWindow = api.genericRenderWindow.getRenderWindow();
-
-        const istyle = vtkInteractorStyleMPRSlice.newInstance();
-
-        // add istyle
-        api.setInteractorStyle({
-          istyle,
-        });
-
-        // set blend mode to MIP.
-        const mapper = api.volumes[0].getMapper();
-        if (mapper.setBlendModeToMaximumIntensity) {
-          mapper.setBlendModeToMaximumIntensity();
-        }
-
-        api.setSlabThickness(0.1);
-
-        renderWindow.render();
+        // TODO: Set new options if we need them for this type.
+        //
+        // const renderWindow = api.genericRenderWindow.getRenderWindow();
+        // const istyle = vtkInteractorStyleMPRSlice.newInstance();
+        // // add istyle
+        // api.setInteractorStyle({
+        //   istyle,
+        // });
+        // renderWindow.render();
       }
     };
   };
-
-  handleSlabThicknessChange(evt) {
-    const value = evt.target.value;
-    const valueInMM = value / 10;
-    const apis = this.apis;
-
-    apis.forEach(api => {
-      const renderWindow = api.genericRenderWindow.getRenderWindow();
-
-      api.setSlabThickness(valueInMM);
-      renderWindow.render();
-    });
-  }
 
   render() {
     if (!this.state.volumes || !this.state.volumes.length) {
@@ -346,38 +333,14 @@ class VTK4UPExample extends Component {
     return (
       <>
         <div className="row">
-          <div className="col-xs-4">
-            <p>This example demonstrates how to use the 4up manipulator.</p>
-            <label htmlFor="set-slab-thickness">SlabThickness: </label>
-            <input
-              id="set-slab-thickness"
-              type="range"
-              name="points"
-              min="1"
-              max="5000"
-              onChange={this.handleSlabThicknessChange.bind(this)}
-            />
-          </div>
-        </div>
-        <div className="row">
-          {/**
-                  <div className="col-sm-4">
-            <View2D
-              volumes={this.state.volumes}
-              onCreated={this.storeApi(0)}
-              orientation={{ sliceNormal: [0, 1, 0], viewUp: [0, 0, 1] }}
-            />
-          </div>
-
-
-        */}
-
           <div className="col-sm-4">
-            <View2D
+            <View2DImageMapper
               volumes={this.state.volumes}
               onCreated={this.storeApi(0, '2D')}
               orientation={{ sliceNormal: [1, 0, 0], viewUp: [0, 0, 1] }}
-              paintFilterLabelMapImageData={
+            />
+            {/** // Old View2D props
+                            paintFilterLabelMapImageData={
                 this.state.paintFilterLabelMapImageData
               }
               paintFilterBackgroundImageData={
@@ -391,41 +354,15 @@ class VTK4UPExample extends Component {
                 renderOutline: configuration.renderOutline,
                 segmentsDefaultProperties: [], // Its kinda dumb that this needs to be present.
               }}
-            />
+               */}
           </div>
-          {/** TEST Seg in View2D, which we know works.
-          <div className="col-sm-4">
-            <View2D
-              volumes={this.state.volumeRenderingVolumes}
-              onCreated={this.storeApi(2)}
-              orientation={{ sliceNormal: [1, 0, 0], viewUp: [0, 0, 1] }}
-            />
-          </div>
-          */}
-          {/** 3D  View*/}
+          {/** 3D  View
           <div className="col-sm-4">
             <View3D
               volumes={this.state.volumeRenderingVolumes}
               onCreated={this.storeApi(1, '3D')}
             />
           </div>
-
-          {/**
-                    <div className="col-sm-4">
-            <View2D
-              volumes={this.state.volumes}
-              onCreated={this.storeApi(2)}
-              orientation={{ sliceNormal: [0, 0, 1], viewUp: [0, -1, 0] }}
-            />
-          </div>
-          <div className="col-sm-4">
-            <View2D
-              volumes={this.state.volumes}
-              onCreated={this.storeApi(3)}
-              orientation={{ sliceNormal: [0, 0, 1], viewUp: [0, -1, 0] }}
-            />
-          </div>
-
           */}
         </div>
       </>
