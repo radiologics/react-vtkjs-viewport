@@ -78,8 +78,6 @@ export default class View2DImageMapper extends Component {
       renderer.addViewProp(actor);
     });
 
-    // Use orientation prob to set slice direction
-
     let sliceMode;
 
     const imageActor = actors[0];
@@ -91,6 +89,7 @@ export default class View2DImageMapper extends Component {
 
     const { orientation } = this.props;
 
+    // Use orientation prob to set slice direction
     switch (orientation) {
       case 'I':
         sliceMode = vtkImageMapper.SlicingMode.I;
@@ -106,13 +105,21 @@ export default class View2DImageMapper extends Component {
         break;
     }
 
-    // TODO -> Deal with label volume
+    actors.forEach(actor => {
+      // Set slice orientation/mode and camera view
+      actor.getMapper().setSlicingMode(sliceMode);
 
-    // Default slice orientation/mode and camera view
-    imageMapper.setSlicingMode(sliceMode);
+      // Set middle slice.
+      actor.getMapper().setSlice(Math.floor(dimensionsOfSliceDirection / 2));
+    });
 
-    // Set middle slice.
-    imageMapper.setSlice(Math.floor(dimensionsOfSliceDirection / 2));
+    const secondaryActors = actors.slice(1);
+    // updateSlices when the object is made.
+    imageMapper.onModified(() => {
+      secondaryActors.forEach(actor => {
+        actor.getMapper().setSlice(imageMapper.getSlice());
+      });
+    });
 
     // Set up camera
 
