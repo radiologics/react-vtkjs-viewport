@@ -423,11 +423,6 @@ class VTK4UPExample extends Component {
       return <h4>Loading...</h4>;
     }
 
-    debugger;
-
-    // Get labelmap rendering config
-    const { configuration } = segmentationModule;
-
     return (
       <>
         <div className="row">
