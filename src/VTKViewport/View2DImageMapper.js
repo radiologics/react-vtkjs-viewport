@@ -13,6 +13,7 @@ import { uuidv4 } from './../helpers';
 export default class View2DImageMapper extends Component {
   static propTypes = {
     actors: PropTypes.array,
+    labelmapActors: PropTypes.array,
     dataDetails: PropTypes.object,
     onCreated: PropTypes.func,
     onDestroyed: PropTypes.func,
@@ -163,7 +164,6 @@ export default class View2DImageMapper extends Component {
 
     // Update slices of labelmaps when source data slice changed
     imageMapper.onModified(() => {
-      debugger;
       labelmapActors.forEach(actor => {
         actor.getMapper().setSlice(imageMapper.getSlice());
       });
@@ -261,57 +261,46 @@ export default class View2DImageMapper extends Component {
   }
 
   setInteractorStyle({ istyle, callbacks = {}, configuration = {} }) {
-    const { volumes } = this.props;
-    const renderWindow = this.genericRenderWindow.getRenderWindow();
-    const currentIStyle = renderWindow.getInteractor().getInteractorStyle();
-
-    // unsubscribe from previous iStyle's callbacks.
-    while (this.interactorStyleSubs.length) {
-      this.interactorStyleSubs.pop().unsubscribe();
-    }
-
-    let currentViewport;
-    if (currentIStyle.getViewport && istyle.getViewport) {
-      currentViewport = currentIStyle.getViewport();
-    }
-
-    const slabThickness = this.getSlabThickness();
-    const interactor = renderWindow.getInteractor();
-
-    interactor.setInteractorStyle(istyle);
-
-    // TODO: Not sure why this is required the second time this function is called
-    istyle.setInteractor(interactor);
-
-    if (currentViewport) {
-      istyle.setViewport(currentViewport);
-    }
-
-    if (istyle.getVolumeActor() !== volumes[0]) {
-      if (slabThickness && istyle.setSlabThickness) {
-        istyle.setSlabThickness(slabThickness);
-      }
-
-      istyle.setVolumeActor(volumes[0]);
-    }
-
-    // Add appropriate callbacks
-    Object.keys(callbacks).forEach(key => {
-      if (typeof istyle[key] === 'function') {
-        const subscription = istyle[key](callbacks[key]);
-
-        if (subscription && typeof subscription.unsubscribe === 'function') {
-          this.interactorStyleSubs.push(subscription);
-        }
-      }
-    });
-
-    // Set Configuration
-    if (configuration) {
-      istyle.set(configuration);
-    }
-
-    renderWindow.render();
+    // TODO -> we may have different interactor styles here.
+    // const { volumes } = this.props;
+    // const renderWindow = this.genericRenderWindow.getRenderWindow();
+    // const currentIStyle = renderWindow.getInteractor().getInteractorStyle();
+    // // unsubscribe from previous iStyle's callbacks.
+    // while (this.interactorStyleSubs.length) {
+    //   this.interactorStyleSubs.pop().unsubscribe();
+    // }
+    // let currentViewport;
+    // if (currentIStyle.getViewport && istyle.getViewport) {
+    //   currentViewport = currentIStyle.getViewport();
+    // }
+    // const slabThickness = this.getSlabThickness();
+    // const interactor = renderWindow.getInteractor();
+    // interactor.setInteractorStyle(istyle);
+    // // TODO: Not sure why this is required the second time this function is called
+    // istyle.setInteractor(interactor);
+    // if (currentViewport) {
+    //   istyle.setViewport(currentViewport);
+    // }
+    // if (istyle.getVolumeActor() !== volumes[0]) {
+    //   if (slabThickness && istyle.setSlabThickness) {
+    //     istyle.setSlabThickness(slabThickness);
+    //   }
+    //   istyle.setVolumeActor(volumes[0]);
+    // }
+    // // Add appropriate callbacks
+    // Object.keys(callbacks).forEach(key => {
+    //   if (typeof istyle[key] === 'function') {
+    //     const subscription = istyle[key](callbacks[key]);
+    //     if (subscription && typeof subscription.unsubscribe === 'function') {
+    //       this.interactorStyleSubs.push(subscription);
+    //     }
+    //   }
+    // });
+    // // Set Configuration
+    // if (configuration) {
+    //   istyle.set(configuration);
+    // }
+    // renderWindow.render();
   }
 
   updateVOI(windowWidth, windowCenter) {
@@ -320,24 +309,6 @@ export default class View2DImageMapper extends Component {
 
   getOrientation() {
     return this.props.orientation;
-  }
-
-  componentDidUpdate(prevProps) {
-    if (prevProps.volumes !== this.props.volumes) {
-      this.props.volumes.forEach(volume => {
-        if (!volume.isA('vtkVolume')) {
-          console.warn('Data to <Vtk2D> is not vtkVolume data');
-        }
-      });
-
-      if (this.props.volumes.length) {
-        this.props.volumes.forEach(this.renderer.addVolume);
-      } else {
-        // TODO: Remove all volumes
-      }
-
-      this.renderWindow.render();
-    }
   }
 
   setCamera(sliceMode, renderer, data) {
@@ -365,7 +336,6 @@ export default class View2DImageMapper extends Component {
 
   getVOI = actor => {
     // Note: This controls window/level
-
     const windowCenter = actor.getProperty().getColorLevel();
     const windowWidth = actor.getProperty().getColorWindow();
 
