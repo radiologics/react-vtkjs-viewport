@@ -98,6 +98,10 @@ export default class View2DImageMapper extends Component {
         viewUp,
         viewAngle,
       });
+
+      this.props.actors.forEach(actor => {
+        actor.getMapper().setSliceFromCamera(baseCamera);
+      });
     };
     // TODO unsubscribe from this before component unmounts.
     inter.onAnimation(updateCameras);
