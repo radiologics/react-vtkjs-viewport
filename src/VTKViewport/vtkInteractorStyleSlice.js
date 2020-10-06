@@ -4,33 +4,12 @@ import * as vtkMath from 'vtk.js/Sources/Common/Core/Math';
 import { States } from 'vtk.js/Sources/Rendering/Core/InteractorStyle/Constants';
 
 // ----------------------------------------------------------------------------
-// Global methods
-// ----------------------------------------------------------------------------
-
-function clamp(value, min, max) {
-  if (value < min) {
-    return min;
-  }
-  if (value > max) {
-    return max;
-  }
-  return value;
-}
-
-// ----------------------------------------------------------------------------
 // vtkInteractorStyleSlice methods
 // ----------------------------------------------------------------------------
 
 function vtkInteractorStyleSlice(publicAPI, model) {
   // Set our className
   model.classHierarchy.push('vtkInteractorStyleSlice');
-
-  // cache for sliceRange
-  const cache = {
-    sliceNormal: [0, 0, 0],
-    sliceRange: [0, 0],
-    sliceCenter: [],
-  };
 
   // Public API methods
   publicAPI.superHandleMouseMove = publicAPI.handleMouseMove;
@@ -278,20 +257,12 @@ function vtkInteractorStyleSlice(publicAPI, model) {
     model.currentImageProperty = imageProperty;
   };
 
-  // Slice normal is just camera DOP
   publicAPI.getSliceNormal = () => {
     return model.volumeActor.getMapper().getSlicingModeNormal();
   };
 
-  publicAPI.getViewUp = () => {
-    if (model.volumeActor && model.interactor) {
-      const renderer = model.interactor.getCurrentRenderer();
-      const camera = renderer.getActiveCamera();
-
-      return camera.getViewUp();
-    }
-
-    return [0, 0, 0];
+  publicAPI.getSliceCenter = () => {
+    return model.volumeActor.getCenter();
   };
 
   publicAPI.setVolumeActor = actor => {
@@ -303,73 +274,6 @@ function vtkInteractorStyleSlice(publicAPI, model) {
       camera.setFreezeFocalPoint(true);
     } else {
       camera.setFreezeFocalPoint(false);
-    }
-  };
-
-  publicAPI.getViewport = () => model.viewportData;
-
-  publicAPI.setViewport = viewportData => {
-    model.viewportData = viewportData;
-  };
-
-  publicAPI.setSlice = slice => {
-    const renderer = model.interactor.getCurrentRenderer();
-    const camera = renderer.getActiveCamera();
-
-    if (model.volumeActor) {
-      const imageMapper = model.volumeActor.getMapper();
-      const actorVTKImageData = imageMapper.getInputData();
-      const range = actorVTKImageData.getDimensions();
-      const bounds = imageMapper.getBounds();
-
-      const clampedSlice = clamp(slice, ...range);
-
-      let cameraOffset = [0, 0, 0];
-      if (cache.sliceCenter.length) {
-        const oldPos = camera.getFocalPoint();
-        vtkMath.subtract(oldPos, cache.sliceCenter, cameraOffset);
-      }
-
-      const center = [
-        (bounds[0] + bounds[1]) / 2.0,
-        (bounds[2] + bounds[3]) / 2.0,
-        (bounds[4] + bounds[5]) / 2.0,
-      ];
-
-      const distance = camera.getDistance();
-      const dop = camera.getDirectionOfProjection();
-      vtkMath.normalize(dop);
-
-      const midPoint = (range[1] + range[0]) / 2.0;
-      const zeroPoint = [
-        center[0] - dop[0] * midPoint,
-        center[1] - dop[1] * midPoint,
-        center[2] - dop[2] * midPoint,
-      ];
-      const slicePoint = [
-        zeroPoint[0] + dop[0] * clampedSlice,
-        zeroPoint[1] + dop[1] * clampedSlice,
-        zeroPoint[2] + dop[2] * clampedSlice,
-      ];
-
-      // Cache the center for comparison to calculate the next camera offset
-      cache.sliceCenter = [...slicePoint];
-
-      const cameraPos = [
-        slicePoint[0] - dop[0] * distance,
-        slicePoint[1] - dop[1] * distance,
-        slicePoint[2] - dop[2] * distance,
-      ];
-
-      vtkMath.add(slicePoint, cameraOffset, slicePoint);
-      vtkMath.add(cameraPos, cameraOffset, cameraPos);
-
-      camera.setPosition(...cameraPos);
-      camera.setFocalPoint(...slicePoint);
-
-      model.volumeActor.getMapper().setSliceFromCamera(camera);
-
-      return slicePoint;
     }
   };
 }
