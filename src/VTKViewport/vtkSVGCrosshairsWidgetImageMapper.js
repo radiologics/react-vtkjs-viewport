@@ -125,17 +125,6 @@ function vtkSVGCrosshairsWidget(publicAPI, model) {
     dPos.setValue(0.5 * dims[0], 0.5 * dims[1], 0);
     let worldPos = dPos.getComputedWorldValue(renderer);
 
-    const camera = renderer.getActiveCamera();
-    const directionOfProjection = camera.getDirectionOfProjection();
-    const halfSlabThickness = api.getSlabThickness() / 2;
-
-    // Add half of the slab thickness to the world position, such that we select
-    //The center of the slice.
-
-    for (let i = 0; i < worldPos.length; i++) {
-      worldPos[i] += halfSlabThickness * directionOfProjection[i];
-    }
-
     publicAPI.moveCrosshairs(worldPos, apis);
   };
 
@@ -211,17 +200,6 @@ function vtkSVGCrosshairsWidget(publicAPI, model) {
 
     dPos.setValue(doubleDisplayPosition[0], doubleDisplayPosition[1], 0);
     let worldPos = dPos.getComputedWorldValue(renderer);
-
-    const camera = renderer.getActiveCamera();
-    const directionOfProjection = camera.getDirectionOfProjection();
-    const halfSlabThickness = api.getSlabThickness() / 2;
-
-    // Add half of the slab thickness to the world position, such that we select
-    //The center of the slice.
-
-    for (let i = 0; i < worldPos.length; i++) {
-      worldPos[i] += halfSlabThickness * directionOfProjection[i];
-    }
 
     publicAPI.moveCrosshairs(worldPos, [api]);
   };

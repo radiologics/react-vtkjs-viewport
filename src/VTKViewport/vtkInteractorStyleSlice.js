@@ -280,18 +280,7 @@ function vtkInteractorStyleSlice(publicAPI, model) {
 
   // Slice normal is just camera DOP
   publicAPI.getSliceNormal = () => {
-    return [1, 0, 0];
-    // const { ijkMode } = model.volumeActor.getMapper().getClosestIJKAxis();
-    // switch (ijkMode) {
-    //   case vtkImageMapper.SlicingMode.I:
-    //     return [1, 0, 0];
-    //   case vtkImageMapper.SlicingMode.J:
-    //     return [0, 1, 0];
-    //   case vtkImageMapper.SlicingMode.K:
-    //     return [0, 0, 1];
-    //   default:
-    //     return [0, 0, 0];
-    // }
+    return model.volumeActor.getMapper().getSlicingModeNormal();
   };
 
   publicAPI.getViewUp = () => {
@@ -303,15 +292,6 @@ function vtkInteractorStyleSlice(publicAPI, model) {
     }
 
     return [0, 0, 0];
-  };
-
-  publicAPI.setSlabThickness = slabThickness => {
-    model.slabThickness = slabThickness;
-    // // Update the camera clipping range if the slab
-    // // thickness property is changed
-    // const renderer = model.interactor.getCurrentRenderer();
-    // const camera = renderer.getActiveCamera();
-    // camera.setThicknessFromFocalPoint(slabThickness);
   };
 
   publicAPI.setVolumeActor = actor => {
@@ -426,7 +406,6 @@ export function extend(publicAPI, model, initialValues = {}) {
   macro.setGet(publicAPI, model, [
     'interactionMode',
     'volumeActor',
-    'slabThickness',
     'apis',
     'apiIndex',
   ]);
