@@ -1,13 +1,16 @@
 import View2D from './VTKViewport/View2D';
 import View2DImageMapper from './VTKViewport/View2DImageMapper';
 import View3D from './VTKViewport/View3D';
+import vtkInteractorStyleSlice from './VTKViewport/vtkInteractorStyleSlice.js';
 import vtkInteractorStyleMPRSlice from './VTKViewport/vtkInteractorStyleMPRSlice.js';
 import vtkInteractorStyleMPRWindowLevel from './VTKViewport/vtkInteractorStyleMPRWindowLevel.js';
 import vtkInteractorStyleMPRCrosshairs from './VTKViewport/vtkInteractorStyleMPRCrosshairs.js';
 import vtkInteractorStyleRotatableMPRCrosshairs from './VTKViewport/vtkInteractorStyleRotatableMPRCrosshairs.js';
+import vtkInteractorStyleCrosshairsImageMapper from './VTKViewport/vtkInteractorStyleCrosshairsImageMapper.js';
 import vtkInteractorStyleMPRRotate from './VTKViewport/vtkInteractorStyleMPRRotate.js';
 import vtkSVGWidgetManager from './VTKViewport/vtkSVGWidgetManager.js';
 import vtkSVGCrosshairsWidget from './VTKViewport/vtkSVGCrosshairsWidget.js';
+import vtkSVGCrosshairsWidgetImageMapper from './VTKViewport/vtkSVGCrosshairsWidgetImageMapper.js';
 import vtkSVGRotatableCrosshairsWidget from './VTKViewport/vtkSVGRotatableCrosshairsWidget.js';
 import ViewportData from './VTKViewport/ViewportData';
 import ViewportOverlay from './ViewportOverlay/ViewportOverlay.js';
@@ -27,11 +30,14 @@ export {
   vtkInteractorStyleMPRWindowLevel,
   vtkInteractorStyleMPRCrosshairs,
   vtkInteractorStyleRotatableMPRCrosshairs,
+  vtkInteractorStyleCrosshairsImageMapper,
   vtkInteractorStyleMPRRotate,
   vtkInteractorStyleMPRSlice,
+  vtkInteractorStyleSlice,
   vtkSVGWidgetManager,
   vtkSVGCrosshairsWidget,
   vtkSVGRotatableCrosshairsWidget,
+  vtkSVGCrosshairsWidgetImageMapper,
   invertVolume,
   EVENTS,
 };

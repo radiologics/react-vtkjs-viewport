@@ -6,7 +6,8 @@ import {
   View3D,
   getImageData,
   loadImageData,
-  vtkInteractorStyleMPRSlice,
+  vtkInteractorStyleCrosshairsImageMapper,
+  vtkSVGCrosshairsWidgetImageMapper,
 } from '@vtk-viewport';
 import vtkImageMapper from 'vtk.js/Sources/Rendering/Core/ImageMapper';
 import vtkImageSlice from 'vtk.js/Sources/Rendering/Core/ImageSlice';
@@ -399,18 +400,54 @@ class VTK4UPExample extends Component {
     return api => {
       this.apis[viewportIndex] = api;
 
+      const apis = this.apis;
+      const renderWindow = api.genericRenderWindow.getRenderWindow();
+
       if (type === '2D') {
-        // TODO: Set new options if we need them for this type.
-        //
-        // const renderWindow = api.genericRenderWindow.getRenderWindow();
-        // const istyle = vtkInteractorStyleMPRSlice.newInstance();
-        // // add istyle
-        // api.setInteractorStyle({
-        //   istyle,
-        // });
-        // renderWindow.render();
+        // Add svg widget
+        api.addSVGWidget(
+          vtkSVGCrosshairsWidgetImageMapper.newInstance(),
+          'crosshairsWidget'
+        );
+
+        const istyle = vtkInteractorStyleCrosshairsImageMapper.newInstance();
+
+        // add istyle
+        api.setInteractorStyle({
+          istyle,
+          configuration: { apis, apiIndex: viewportIndex },
+        });
+
+        api.setSlabThickness(0.1);
+
+        renderWindow.render();
+
+        // Its up to the layout manager of an app to know how many viewports are being created.
+        if (apis[0] && apis[1] && apis[2]) {
+          //const api = apis[0];
+
+          const api = apis[0];
+
+          api.svgWidgets.crosshairsWidget.resetCrosshairs(apis, 0);
+        }
       }
     };
+  };
+
+  toggleCrosshairs = () => {
+    const { displayCrosshairs } = this.state;
+    const apis = this.apis;
+
+    const shouldDisplayCrosshairs = !displayCrosshairs;
+
+    apis.forEach(api => {
+      const { svgWidgetManager, svgWidgets } = api;
+      svgWidgets.crosshairsWidget.setDisplay(shouldDisplayCrosshairs);
+
+      svgWidgetManager.render();
+    });
+
+    this.setState({ displayCrosshairs: shouldDisplayCrosshairs });
   };
 
   render() {
@@ -426,6 +463,19 @@ class VTK4UPExample extends Component {
     return (
       <>
         <div className="row">
+          <div className="col-xs-4">
+            <p>This example demonstrates a 4up.</p>
+          </div>
+          <div className="col-xs-4">
+            <p>Click bellow to toggle crosshairs on/off.</p>
+            <button onClick={this.toggleCrosshairs}>
+              {this.state.displayCrosshairs
+                ? 'Hide Crosshairs'
+                : 'Show Crosshairs'}
+            </button>
+          </div>
+        </div>
+        <div className="row">
           <div className="col-sm-4">
             <View2DImageMapper
               actors={[this.state.imageActors.I, this.state.labelmapActors.I]}
@@ -439,7 +489,7 @@ class VTK4UPExample extends Component {
           </div>
           <div className="col-sm-4">
             <View2DImageMapper
-              actors={[this.state.imageActors.J]}
+              actors={[this.state.imageActors.J, this.state.labelmapActors.J]}
               labelmapActors={[
                 this.state.labelmapActors.JFill,
                 this.state.labelmapActors.J,
@@ -452,7 +502,7 @@ class VTK4UPExample extends Component {
         <div className="row">
           <div className="col-sm-4">
             <View2DImageMapper
-              actors={[this.state.imageActors.K]}
+              actors={[this.state.imageActors.K, this.state.labelmapActors.K]}
               labelmapActors={[
                 this.state.labelmapActors.KFill,
                 this.state.labelmapActors.K,
