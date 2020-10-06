@@ -390,6 +390,7 @@ class VTK4UPExample extends Component {
         paintFilterLabelMapImageData: labelmapDataObject,
         paintFilterBackgroundImageData: mrImageDataObject.vtkImageData,
         labelmapColorLUT,
+        displayCrosshairs: true,
       });
     };
 
@@ -401,8 +402,6 @@ class VTK4UPExample extends Component {
       this.apis[viewportIndex] = api;
 
       const apis = this.apis;
-      const renderWindow = api.genericRenderWindow.getRenderWindow();
-
       if (type === '2D') {
         // Add svg widget
         api.addSVGWidget(
@@ -420,11 +419,7 @@ class VTK4UPExample extends Component {
 
         // Its up to the layout manager of an app to know how many viewports are being created.
         if (apis[0] && apis[1] && apis[2]) {
-          //const api = apis[0];
-
-          const api = apis[0];
-
-          api.svgWidgets.crosshairsWidget.resetCrosshairs(apis, 0);
+          istyle.resetCrosshairs();
         }
       }
     };
@@ -438,8 +433,10 @@ class VTK4UPExample extends Component {
 
     apis.forEach(api => {
       const { svgWidgetManager, svgWidgets } = api;
+      if (!svgWidgets || !svgWidgets.crosshairsWidget) {
+        return;
+      }
       svgWidgets.crosshairsWidget.setDisplay(shouldDisplayCrosshairs);
-
       svgWidgetManager.render();
     });
 

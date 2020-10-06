@@ -1,5 +1,4 @@
 import macro from 'vtk.js/Sources/macro';
-import vtkMatrixBuilder from 'vtk.js/Sources/Common/Core/MatrixBuilder';
 import vtkCoordinate from 'vtk.js/Sources/Rendering/Core/Coordinate';
 
 let instanceId = 1;
@@ -16,9 +15,9 @@ function getWidgetNode(svgContainer, widgetId) {
 
 // ----------------------------------------------------------------------------
 
-function vtkSVGCrosshairsWidget(publicAPI, model) {
-  model.classHierarchy.push('vtkSVGCrosshairsWidget');
-  model.widgetId = `vtkSVGCrosshairsWidget-${instanceId++}`;
+function vtkSVGCrosshairsWidgetImageMapper(publicAPI, model) {
+  model.classHierarchy.push('vtkSVGCrosshairsWidgetImageMapper');
+  model.widgetId = `vtkSVGCrosshairsWidgetImageMapper-${instanceId++}`;
 
   publicAPI.render = (svgContainer, scale) => {
     const node = getWidgetNode(svgContainer, model.widgetId);
@@ -106,62 +105,20 @@ function vtkSVGCrosshairsWidget(publicAPI, model) {
     }
   };
 
-  publicAPI.resetCrosshairs = (apis, apiIndex) => {
-    const api = apis[apiIndex];
-
-    if (!api.svgWidgets.crosshairsWidget) {
-      // If we aren't using the crosshairs widget, bail out early.
-      return;
-    }
-
-    // Get viewport and get its center.
-    const renderer = api.genericRenderWindow.getRenderer();
-    const view = renderer.getRenderWindow().getViews()[0];
-    const dims = view.getViewportSize(renderer);
-    const dPos = vtkCoordinate.newInstance();
-
-    dPos.setCoordinateSystemToDisplay();
-
-    dPos.setValue(0.5 * dims[0], 0.5 * dims[1], 0);
-    let worldPos = dPos.getComputedWorldValue(renderer);
-
-    publicAPI.moveCrosshairs(worldPos, apis);
-  };
-
-  publicAPI.moveCrosshairs = (worldPos, apis) => {
+  publicAPI.moveCrosshairs = (worldPos, apis, apiIndex) => {
+    console.log('apiIndex: ' + apiIndex + '\nworldPos: ' + worldPos);
     if (worldPos === undefined || apis === undefined) {
       console.error(
         'worldPos, apis must be defined in order to update crosshairs.'
       );
     }
 
-    // Set camera focal point to world coordinate for linked views
     apis.forEach((api, viewportIndex) => {
       if (!api.svgWidgets || !api.svgWidgets.crosshairsWidget) {
         return;
       }
+
       api.set('cachedCrosshairWorldPosition', worldPos);
-
-      // We are basically doing the same as getSlice but with the world coordinate
-      // that we want to jump to instead of the camera focal point.
-      // I would rather do the camera adjustment directly but I keep
-      // doing it wrong and so this is good enough for now.
-      const renderWindow = api.genericRenderWindow.getRenderWindow();
-
-      const istyle = renderWindow.getInteractor().getInteractorStyle();
-      const sliceNormal = istyle.getSliceNormal();
-      const transform = vtkMatrixBuilder
-        .buildFromDegree()
-        .identity()
-        .rotateFromDirections(sliceNormal, [1, 0, 0]);
-
-      const mutatedWorldPos = worldPos.slice();
-      transform.apply(mutatedWorldPos);
-      const slice = mutatedWorldPos[0];
-
-      istyle.setSlice(slice);
-
-      renderWindow.render();
 
       const renderer = api.genericRenderWindow.getRenderer();
       const wPos = vtkCoordinate.newInstance();
@@ -175,36 +132,20 @@ function vtkSVGCrosshairsWidget(publicAPI, model) {
         displayPosition[0],
         displayPosition[1]
       );
-
       svgWidgetManager.render();
+
+      if (viewportIndex != apiIndex) {
+        const imageMapper = api.actors[0].getMapper();
+        const slice = imageMapper.getSliceAtPosition(worldPos);
+        imageMapper.setSlice(slice);
+        console.log('viewportIndex: ' + viewportIndex + '\nslice: ' + slice);
+      }
+
+      const renderWindow = api.genericRenderWindow.getRenderWindow();
+      renderWindow.render();
     });
   };
-
-  publicAPI.updateCrosshairForApi = api => {
-    if (!api.svgWidgets.crosshairsWidget) {
-      // If we aren't using the crosshairs widget, bail out early.
-      return;
-    }
-
-    const renderer = api.genericRenderWindow.getRenderer();
-    let cachedCrosshairWorldPosition = api.get('cachedCrosshairWorldPosition');
-
-    const wPos = vtkCoordinate.newInstance();
-    wPos.setCoordinateSystemToWorld();
-    wPos.setValue(...cachedCrosshairWorldPosition);
-
-    const doubleDisplayPosition = wPos.getComputedDoubleDisplayValue(renderer);
-
-    const dPos = vtkCoordinate.newInstance();
-    dPos.setCoordinateSystemToDisplay();
-
-    dPos.setValue(doubleDisplayPosition[0], doubleDisplayPosition[1], 0);
-    let worldPos = dPos.getComputedWorldValue(renderer);
-
-    publicAPI.moveCrosshairs(worldPos, [api]);
-  };
 }
-
 // ----------------------------------------------------------------------------
 
 const DEFAULT_VALUES = {
@@ -231,12 +172,15 @@ export function extend(publicAPI, model, initialValues = {}) {
   ]);
   macro.setGetArray(publicAPI, model, ['point', 'padding'], 2);
 
-  vtkSVGCrosshairsWidget(publicAPI, model);
+  vtkSVGCrosshairsWidgetImageMapper(publicAPI, model);
 }
 
 // ----------------------------------------------------------------------------
 
-export const newInstance = macro.newInstance(extend, 'vtkSVGCrosshairsWidget');
+export const newInstance = macro.newInstance(
+  extend,
+  'vtkSVGCrosshairsWidgetImageMapper'
+);
 
 // ----------------------------------------------------------------------------
 
