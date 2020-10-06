@@ -23,22 +23,16 @@ function vtkInteractorStyleCrosshairsImageMapper(publicAPI, model) {
     const { apis, apiIndex } = model;
     const api = apis[apiIndex];
 
-    const camera = api.genericRenderWindow.getRenderer().getActiveCamera();
-    model.planeManipulator.setNormal(camera.getViewPlaneNormal());
-    model.planeManipulator.setOrigin([0, 0, 0]);
-    const worldCoords = model.planeManipulator.handleEvent(
-      callData,
-      api.genericRenderWindow.getOpenGLRenderWindow()
-    );
+    const pos = callData.position;
+    const renderer = callData.pokedRenderer;
 
-    const imageActor = publicAPI.getVolumeActor();
-    let index = [];
-    imageActor
-      .getMapper()
-      .getInputData()
-      .worldToIndex(worldCoords, index);
+    const dPos = vtkCoordinate.newInstance();
+    dPos.setCoordinateSystemToDisplay();
 
-    api.svgWidgets.crosshairsWidget.moveCrosshairs(worldCoords, apis, apiIndex);
+    dPos.setValue(pos.x, pos.y, 0);
+    let worldPos = dPos.getComputedWorldValue(renderer);
+
+    api.svgWidgets.crosshairsWidget.moveCrosshairs(worldPos, apis, apiIndex);
 
     publicAPI.invokeInteractionEvent({ type: 'InteractionEvent' });
   }

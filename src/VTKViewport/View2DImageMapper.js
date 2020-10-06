@@ -204,8 +204,6 @@ export default class View2DImageMapper extends Component {
     const boundSetCamera = this.setCamera.bind(this);
     const boundUpdateImage = this.updateImage.bind(this);
     const boundGetSliceNormal = this.getSliceNormal.bind(this);
-    const boundGetSlabThickness = this.getSlabThickness.bind(this);
-    const boundSetSlabThickness = this.setSlabThickness.bind(this);
 
     this.svgWidgets = {};
 
@@ -233,8 +231,6 @@ export default class View2DImageMapper extends Component {
         getOrientation: boundGetOrienation,
         setInteractorStyle: boundSetInteractorStyle,
         getSliceNormal: boundGetSliceNormal,
-        getSlabThickness: boundGetSlabThickness,
-        setSlabThickness: boundSetSlabThickness,
         setCamera: boundSetCamera,
         get: boundGetApiProperty,
         set: boundSetApiProperty,
@@ -281,7 +277,6 @@ export default class View2DImageMapper extends Component {
     if (currentIStyle.getViewport && istyle.getViewport) {
       currentViewport = currentIStyle.getViewport();
     }
-    const slabThickness = this.getSlabThickness();
     const interactor = renderWindow.getInteractor();
     interactor.setInteractorStyle(istyle);
     // TODO: Not sure why this is required the second time this function is called
@@ -290,9 +285,6 @@ export default class View2DImageMapper extends Component {
       istyle.setViewport(currentViewport);
     }
     if (istyle.getVolumeActor() !== actors[0]) {
-      if (slabThickness && istyle.setSlabThickness) {
-        istyle.setSlabThickness(slabThickness);
-      }
       istyle.setVolumeActor(actors[0]);
     }
     renderWindow.render();
@@ -336,26 +328,6 @@ export default class View2DImageMapper extends Component {
     const currentIStyle = renderWindow.getInteractor().getInteractorStyle();
 
     return currentIStyle.getSliceNormal();
-  }
-
-  getSlabThickness() {
-    const renderWindow = this.genericRenderWindow.getRenderWindow();
-    const currentIStyle = renderWindow.getInteractor().getInteractorStyle();
-
-    if (currentIStyle.getSlabThickness) {
-      return currentIStyle.getSlabThickness();
-    }
-  }
-
-  setSlabThickness(slabThickness) {
-    const renderWindow = this.genericRenderWindow.getRenderWindow();
-    const istyle = renderWindow.getInteractor().getInteractorStyle();
-
-    if (istyle.setSlabThickness) {
-      istyle.setSlabThickness(slabThickness);
-    }
-
-    renderWindow.render();
   }
 
   componentWillUnmount() {

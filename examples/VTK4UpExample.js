@@ -418,10 +418,6 @@ class VTK4UPExample extends Component {
           configuration: { apis, apiIndex: viewportIndex },
         });
 
-        api.setSlabThickness(0.1);
-
-        renderWindow.render();
-
         // Its up to the layout manager of an app to know how many viewports are being created.
         if (apis[0] && apis[1] && apis[2]) {
           //const api = apis[0];
