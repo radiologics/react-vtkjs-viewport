@@ -1,7 +1,6 @@
 import View2D from './VTKViewport/View2D';
 import View2DImageMapper from './VTKViewport/View2DImageMapper';
 import View3D from './VTKViewport/View3D';
-import vtkInteractorStyleSlice from './VTKViewport/vtkInteractorStyleSlice.js';
 import vtkInteractorStyleMPRSlice from './VTKViewport/vtkInteractorStyleMPRSlice.js';
 import vtkInteractorStyleMPRWindowLevel from './VTKViewport/vtkInteractorStyleMPRWindowLevel.js';
 import vtkInteractorStyleMPRCrosshairs from './VTKViewport/vtkInteractorStyleMPRCrosshairs.js';
@@ -33,7 +32,6 @@ export {
   vtkInteractorStyleCrosshairsImageMapper,
   vtkInteractorStyleMPRRotate,
   vtkInteractorStyleMPRSlice,
-  vtkInteractorStyleSlice,
   vtkSVGWidgetManager,
   vtkSVGCrosshairsWidget,
   vtkSVGRotatableCrosshairsWidget,

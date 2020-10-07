@@ -4,7 +4,7 @@ import vtkGenericRenderWindow from 'vtk.js/Sources/Rendering/Misc/GenericRenderW
 import vtkRenderer from 'vtk.js/Sources/Rendering/Core/Renderer';
 import vtkWidgetManager from 'vtk.js/Sources/Widgets/Core/WidgetManager';
 import vtkImageMapper from 'vtk.js/Sources/Rendering/Core/ImageMapper';
-import vtkInteractorStyleSlice from './vtkInteractorStyleSlice';
+import vtkInteractorStyleImage from 'vtk.js/Sources/Interaction/Style/InteractorStyleImage';
 import vtkSVGWidgetManager from './vtkSVGWidgetManager';
 import ViewportOverlay from '../ViewportOverlay/ViewportOverlay.js';
 import { createSub } from '../lib/createSub.js';
@@ -77,7 +77,7 @@ export default class View2DImageMapper extends Component {
     // the vtkOpenGLRenderer instance.
     oglrw.buildPass(true);
 
-    const iStyle = vtkInteractorStyleSlice.newInstance();
+    const iStyle = vtkInteractorStyleImage.newInstance();
 
     iStyle.setInteractionMode('IMAGE_SLICING');
     this.renderWindow.getInteractor().setInteractorStyle(iStyle);
