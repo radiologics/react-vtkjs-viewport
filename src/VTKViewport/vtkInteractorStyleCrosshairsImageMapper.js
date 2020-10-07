@@ -1,8 +1,8 @@
 import macro from 'vtk.js/Sources/macro';
-import vtkInteractorStyleSlice from './vtkInteractorStyleSlice.js';
+import vtkInteractorStyleImage from 'vtk.js/Sources/Interaction/Style/InteractorStyleImage';
 import Constants from 'vtk.js/Sources/Rendering/Core/InteractorStyle/Constants';
 import vtkPlaneManipulator from 'vtk.js/Sources/Widgets/Manipulators/PlaneManipulator';
-import * as vtkMath from 'vtk.js/Sources/Common/Core/Math';
+import vtkBoundingBox from 'vtk.js/Sources/Common/DataModel/BoundingBox';
 
 const { States } = Constants;
 
@@ -105,6 +105,27 @@ function vtkInteractorStyleCrosshairsImageMapper(publicAPI, model) {
     publicAPI.superHandleMouseWheel(callData);
     publicAPI.updateCrosshairsAfterScroll();
   };
+
+  publicAPI.getSliceNormal = () => {
+    return model.volumeActor.getMapper().getSlicingModeNormal();
+  };
+
+  publicAPI.getSliceCenter = () => {
+    //set to center of current slice
+    return vtkBoundingBox.getCenter(model.volumeActor.getBoundsForSlice());
+  };
+
+  publicAPI.setVolumeActor = actor => {
+    model.volumeActor = actor;
+    const renderer = model.interactor.getCurrentRenderer();
+    const camera = renderer.getActiveCamera();
+    if (actor) {
+      // prevent zoom manipulator from messing with our focal point
+      camera.setFreezeFocalPoint(true);
+    } else {
+      camera.setFreezeFocalPoint(false);
+    }
+  };
 }
 
 // ----------------------------------------------------------------------------
@@ -119,9 +140,14 @@ export function extend(publicAPI, model, initialValues = {}) {
   Object.assign(model, DEFAULT_VALUES, initialValues);
 
   // Inheritance
-  vtkInteractorStyleSlice.extend(publicAPI, model, initialValues);
+  vtkInteractorStyleImage.extend(publicAPI, model, initialValues);
 
-  macro.setGet(publicAPI, model, ['callback', 'apis', 'apiIndex']);
+  macro.setGet(publicAPI, model, [
+    'callback',
+    'apis',
+    'apiIndex',
+    'volumeActor',
+  ]);
 
   // Object specific methods
   vtkInteractorStyleCrosshairsImageMapper(publicAPI, model);
