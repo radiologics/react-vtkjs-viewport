@@ -284,8 +284,8 @@ export default class View2DImageMapper extends Component {
     if (currentViewport) {
       istyle.setViewport(currentViewport);
     }
-    if (istyle.getVolumeActor() !== actors[0]) {
-      istyle.setVolumeActor(actors[0]);
+    if (istyle.getImageActor() !== actors[0]) {
+      istyle.setImageActor(actors[0]);
     }
     renderWindow.render();
     // Add appropriate callbacks

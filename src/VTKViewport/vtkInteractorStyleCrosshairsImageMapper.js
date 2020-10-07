@@ -11,7 +11,7 @@ const { States } = Constants;
 // ----------------------------------------------------------------------------
 
 // ----------------------------------------------------------------------------
-// vtkInteractorStyleMPRCrosshairs methods
+// vtkInteractorStyleCrosshairsImageMapper methods
 // ----------------------------------------------------------------------------
 
 function vtkInteractorStyleCrosshairsImageMapper(publicAPI, model) {
@@ -78,7 +78,7 @@ function vtkInteractorStyleCrosshairsImageMapper(publicAPI, model) {
   const superHandleLeftButtonPress = publicAPI.handleLeftButtonPress;
   publicAPI.handleLeftButtonPress = callData => {
     if (!callData.shiftKey && !callData.controlKey) {
-      if (model.volumeActor) {
+      if (model.imageActor) {
         publicAPI.moveCrosshairs(callData);
         publicAPI.startPan();
       }
@@ -107,16 +107,16 @@ function vtkInteractorStyleCrosshairsImageMapper(publicAPI, model) {
   };
 
   publicAPI.getSliceNormal = () => {
-    return model.volumeActor.getMapper().getSlicingModeNormal();
+    return model.imageActor.getMapper().getSlicingModeNormal();
   };
 
   publicAPI.getSliceCenter = () => {
     //set to center of current slice
-    return vtkBoundingBox.getCenter(model.volumeActor.getBoundsForSlice());
+    return vtkBoundingBox.getCenter(model.imageActor.getBoundsForSlice());
   };
 
-  publicAPI.setVolumeActor = actor => {
-    model.volumeActor = actor;
+  publicAPI.setImageActor = actor => {
+    model.imageActor = actor;
     const renderer = model.interactor.getCurrentRenderer();
     const camera = renderer.getActiveCamera();
     if (actor) {
@@ -146,7 +146,7 @@ export function extend(publicAPI, model, initialValues = {}) {
     'callback',
     'apis',
     'apiIndex',
-    'volumeActor',
+    'imageActor',
   ]);
 
   // Object specific methods
