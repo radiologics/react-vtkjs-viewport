@@ -265,7 +265,6 @@ export default class View2DImageMapper extends Component {
   }
 
   setInteractorStyle({ istyle, callbacks = {}, configuration = {} }) {
-    // // TODO -> we may have different interactor styles here.
     const { actors } = this.props;
     const renderWindow = this.genericRenderWindow.getRenderWindow();
     const currentIStyle = renderWindow.getInteractor().getInteractorStyle();

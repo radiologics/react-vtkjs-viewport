@@ -8,12 +8,14 @@ import {
   loadImageData,
   vtkInteractorStyleCrosshairsImageMapper,
   vtkSVGCrosshairsWidgetImageMapper,
+  vtkInteractorStyleCrosshairsMarchingCubes,
 } from '@vtk-viewport';
 import vtkImageMapper from 'vtk.js/Sources/Rendering/Core/ImageMapper';
 import vtkImageSlice from 'vtk.js/Sources/Rendering/Core/ImageSlice';
+import vtkImageMarchingCubes from 'vtk.js/Sources/Filters/General/ImageMarchingCubes';
 import { api as dicomwebClientApi } from 'dicomweb-client';
-import vtkVolume from 'vtk.js/Sources/Rendering/Core/Volume';
-import vtkVolumeMapper from 'vtk.js/Sources/Rendering/Core/VolumeMapper';
+import vtkMapper from 'vtk.js/Sources/Rendering/Core/Mapper';
+import vtkActor from 'vtk.js/Sources/Rendering/Core/Actor';
 import vtkImageData from 'vtk.js/Sources/Common/DataModel/ImageData';
 import vtkDataArray from 'vtk.js/Sources/Common/Core/DataArray';
 import cornerstoneTools from 'cornerstone-tools';
@@ -295,25 +297,22 @@ class VTK4UPExample extends Component {
         .getScalars()
         .getRange();
 
-      const segMapper = vtkVolumeMapper.newInstance();
-      const segVol = vtkVolume.newInstance();
+      const segMapper = vtkMapper.newInstance();
+      const segActor = vtkActor.newInstance();
 
       const labelmapTransferFunctions = makeLabelMapColorTransferFunction(
         labelmapColorLUT
       );
 
-      const rgbTransferFunctionSeg = segVol
-        .getProperty()
-        .getRGBTransferFunction(0);
-
-      segVol
-        .getProperty()
-        .setRGBTransferFunction(0, labelmapTransferFunctions.cfun);
-      segVol.getProperty().setScalarOpacity(0, labelmapTransferFunctions.ofun);
-      segMapper.setInputData(labelmapDataObject);
-      segMapper.setMaximumSamplesPerRay(2000);
-      rgbTransferFunctionSeg.setRange(segRange[0], segRange[1]);
-      segVol.setMapper(segMapper);
+      const marchingCube = vtkImageMarchingCubes.newInstance({
+        contourValue: (segRange[0] + segRange[1]) / 3,
+        computeNormals: true,
+        mergePoints: true,
+      });
+      marchingCube.setInputData(labelmapDataObject);
+      segActor.getProperty().setColor(1, 0, 0);
+      segActor.setMapper(segMapper);
+      segMapper.setInputConnection(marchingCube.getOutputPort());
 
       // labelmapActors for 2D views
 
@@ -386,7 +385,7 @@ class VTK4UPExample extends Component {
           K: labelmapActors[2],
           KFill: labelmapFillActors[2],
         },
-        volumeRenderingVolumes: [segVol],
+        marchingCubesActor: [segActor],
         paintFilterLabelMapImageData: labelmapDataObject,
         paintFilterBackgroundImageData: mrImageDataObject.vtkImageData,
         labelmapColorLUT,
@@ -399,28 +398,34 @@ class VTK4UPExample extends Component {
 
   storeApi = (viewportIndex, type) => {
     return api => {
-      this.apis[viewportIndex] = api;
-
       const apis = this.apis;
-      if (type === '2D') {
-        // Add svg widget
-        api.addSVGWidget(
-          vtkSVGCrosshairsWidgetImageMapper.newInstance(),
-          'crosshairsWidget'
-        );
+      apis[viewportIndex] = api;
 
-        const istyle = vtkInteractorStyleCrosshairsImageMapper.newInstance();
+      // Add svg widget
+      api.addSVGWidget(
+        vtkSVGCrosshairsWidgetImageMapper.newInstance(),
+        'crosshairsWidget'
+      );
 
-        // add istyle
-        api.setInteractorStyle({
-          istyle,
-          configuration: { apis, apiIndex: viewportIndex },
-        });
+      const istyle =
+        type === '2D'
+          ? vtkInteractorStyleCrosshairsImageMapper.newInstance()
+          : vtkInteractorStyleCrosshairsMarchingCubes.newInstance();
 
-        // Its up to the layout manager of an app to know how many viewports are being created.
-        if (apis[0] && apis[1] && apis[2]) {
-          istyle.resetCrosshairs();
-        }
+      // add istyle
+      api.setInteractorStyle({
+        istyle,
+        configuration: { apis, apiIndex: viewportIndex },
+      });
+
+      // Its up to the layout manager of an app to know how many viewports are being created.
+      if (apis.length === 4) {
+        const targetApi = apis[0];
+        const targetIstyle = targetApi.genericRenderWindow
+          .getRenderWindow()
+          .getInteractor()
+          .getInteractorStyle();
+        targetIstyle.resetCrosshairs();
       }
     };
   };
@@ -447,8 +452,8 @@ class VTK4UPExample extends Component {
     if (
       !this.state.imageActors ||
       !this.state.labelmapActors ||
-      !this.state.volumeRenderingVolumes ||
-      !this.state.volumeRenderingVolumes.length
+      !this.state.marchingCubesActor ||
+      !this.state.marchingCubesActor.length
     ) {
       return <h4>Loading...</h4>;
     }
@@ -507,7 +512,7 @@ class VTK4UPExample extends Component {
           {/** 3D  View*/}
           <div className="col-sm-4">
             <View3DMarchingCubes
-              volumes={this.state.volumeRenderingVolumes}
+              actors={this.state.marchingCubesActor}
               onCreated={this.storeApi(3, '3D')}
             />
           </div>
