@@ -1,6 +1,7 @@
 import View2D from './VTKViewport/View2D';
 import View2DImageMapper from './VTKViewport/View2DImageMapper';
 import View3D from './VTKViewport/View3D';
+import View3DMarchingCubes from './VTKViewport/View3DMarchingCubes';
 import vtkInteractorStyleMPRSlice from './VTKViewport/vtkInteractorStyleMPRSlice.js';
 import vtkInteractorStyleMPRWindowLevel from './VTKViewport/vtkInteractorStyleMPRWindowLevel.js';
 import vtkInteractorStyleMPRCrosshairs from './VTKViewport/vtkInteractorStyleMPRCrosshairs.js';
@@ -22,6 +23,7 @@ export {
   View2D,
   View2DImageMapper,
   View3D,
+  View3DMarchingCubes,
   ViewportOverlay,
   ViewportData,
   getImageData,

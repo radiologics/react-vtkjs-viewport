@@ -3,7 +3,7 @@ import { Component } from 'react';
 import dcmjs from 'dcmjs';
 import {
   View2DImageMapper,
-  View3D,
+  View3DMarchingCubes,
   getImageData,
   loadImageData,
   vtkInteractorStyleCrosshairsImageMapper,
@@ -384,7 +384,7 @@ class VTK4UPExample extends Component {
           J: labelmapActors[1],
           JFill: labelmapFillActors[1],
           K: labelmapActors[2],
-          KFill: labelmapFillActors[1],
+          KFill: labelmapFillActors[2],
         },
         volumeRenderingVolumes: [segVol],
         paintFilterLabelMapImageData: labelmapDataObject,
@@ -471,7 +471,7 @@ class VTK4UPExample extends Component {
         <div className="row">
           <div className="col-sm-4">
             <View2DImageMapper
-              actors={[this.state.imageActors.I, this.state.labelmapActors.I]}
+              actors={[this.state.imageActors.I]}
               labelmapActors={[
                 this.state.labelmapActors.IFill,
                 this.state.labelmapActors.I,
@@ -482,7 +482,7 @@ class VTK4UPExample extends Component {
           </div>
           <div className="col-sm-4">
             <View2DImageMapper
-              actors={[this.state.imageActors.J, this.state.labelmapActors.J]}
+              actors={[this.state.imageActors.J]}
               labelmapActors={[
                 this.state.labelmapActors.JFill,
                 this.state.labelmapActors.J,
@@ -495,7 +495,7 @@ class VTK4UPExample extends Component {
         <div className="row">
           <div className="col-sm-4">
             <View2DImageMapper
-              actors={[this.state.imageActors.K, this.state.labelmapActors.K]}
+              actors={[this.state.imageActors.K]}
               labelmapActors={[
                 this.state.labelmapActors.KFill,
                 this.state.labelmapActors.K,
@@ -506,7 +506,7 @@ class VTK4UPExample extends Component {
           </div>
           {/** 3D  View*/}
           <div className="col-sm-4">
-            <View3D
+            <View3DMarchingCubes
               volumes={this.state.volumeRenderingVolumes}
               onCreated={this.storeApi(3, '3D')}
             />
