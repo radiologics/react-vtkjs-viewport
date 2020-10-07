@@ -1,6 +1,7 @@
 import macro from 'vtk.js/Sources/macro';
 import vtkInteractorStyleTrackballCamera from 'vtk.js/Sources/Interaction/Style/InteractorStyleTrackballCamera';
 import * as vtkMath from 'vtk.js/Sources/Common/Core/Math';
+import vtkBoundingBox from 'vtk.js/Sources/Common/DataModel/BoundingBox';
 import { States } from 'vtk.js/Sources/Rendering/Core/InteractorStyle/Constants';
 
 // ----------------------------------------------------------------------------
@@ -262,7 +263,8 @@ function vtkInteractorStyleSlice(publicAPI, model) {
   };
 
   publicAPI.getSliceCenter = () => {
-    return model.volumeActor.getCenter();
+    //set to center of current slice
+    return vtkBoundingBox.getCenter(model.volumeActor.getBoundsForSlice());
   };
 
   publicAPI.setVolumeActor = actor => {

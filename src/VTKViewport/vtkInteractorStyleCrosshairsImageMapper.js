@@ -1,8 +1,8 @@
 import macro from 'vtk.js/Sources/macro';
 import vtkInteractorStyleSlice from './vtkInteractorStyleSlice.js';
 import Constants from 'vtk.js/Sources/Rendering/Core/InteractorStyle/Constants';
-import vtkCoordinate from 'vtk.js/Sources/Rendering/Core/Coordinate';
 import vtkPlaneManipulator from 'vtk.js/Sources/Widgets/Manipulators/PlaneManipulator';
+import * as vtkMath from 'vtk.js/Sources/Common/Core/Math';
 
 const { States } = Constants;
 
@@ -48,11 +48,19 @@ function vtkInteractorStyleCrosshairsImageMapper(publicAPI, model) {
     publicAPI.invokeInteractionEvent({ type: 'InteractionEvent' });
   };
 
-  publicAPI.updateCrosshairsForApi = () => {
+  publicAPI.updateCrosshairsAfterScroll = () => {
     const { apis, apiIndex } = model;
     const api = apis[apiIndex];
 
-    const worldCoords = api.get('cachedCrosshairWorldPosition');
+    const renderer = api.genericRenderWindow.getRenderer();
+    const camera = renderer.getActiveCamera();
+    api.actors.forEach(actor => {
+      actor.getMapper().setSliceFromCamera(camera);
+    });
+
+    let worldCoords = api.get('cachedCrosshairWorldPosition');
+    // we want to reuse the cached coords, replacing for our new slice (set by camera)
+    worldCoords[api.sliceMode] = camera.getFocalPoint()[api.sliceMode];
     api.svgWidgets.crosshairsWidget.moveCrosshairs(worldCoords, apis, apiIndex);
 
     publicAPI.invokeInteractionEvent({ type: 'InteractionEvent' });
@@ -95,7 +103,7 @@ function vtkInteractorStyleCrosshairsImageMapper(publicAPI, model) {
   publicAPI.superHandleMouseWheel = publicAPI.handleMouseWheel;
   publicAPI.handleMouseWheel = callData => {
     publicAPI.superHandleMouseWheel(callData);
-    publicAPI.updateCrosshairsForApi();
+    publicAPI.updateCrosshairsAfterScroll();
   };
 }
 

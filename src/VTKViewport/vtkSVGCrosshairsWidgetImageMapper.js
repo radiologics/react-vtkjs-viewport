@@ -106,7 +106,6 @@ function vtkSVGCrosshairsWidgetImageMapper(publicAPI, model) {
   };
 
   publicAPI.moveCrosshairs = (worldPos, apis, apiIndex) => {
-    console.log('apiIndex: ' + apiIndex + '\nworldPos: ' + worldPos);
     if (worldPos === undefined || apis === undefined) {
       console.error(
         'worldPos, apis must be defined in order to update crosshairs.'
@@ -120,6 +119,7 @@ function vtkSVGCrosshairsWidgetImageMapper(publicAPI, model) {
 
       api.set('cachedCrosshairWorldPosition', worldPos);
 
+      const renderWindow = api.genericRenderWindow.getRenderWindow();
       const renderer = api.genericRenderWindow.getRenderer();
       const wPos = vtkCoordinate.newInstance();
       wPos.setCoordinateSystemToWorld();
@@ -134,14 +134,16 @@ function vtkSVGCrosshairsWidgetImageMapper(publicAPI, model) {
       );
       svgWidgetManager.render();
 
-      if (viewportIndex != apiIndex) {
+      if (viewportIndex == apiIndex) {
+        const istyle = renderWindow.getInteractor().getInteractorStyle();
+        const camera = renderer.getActiveCamera();
+        camera.setFocalPoint(...istyle.getSliceCenter());
+      } else {
         const imageMapper = api.actors[0].getMapper();
         const slice = imageMapper.getSliceAtPosition(worldPos);
         imageMapper.setSlice(slice);
-        console.log('viewportIndex: ' + viewportIndex + '\nslice: ' + slice);
       }
 
-      const renderWindow = api.genericRenderWindow.getRenderWindow();
       renderWindow.render();
     });
   };
