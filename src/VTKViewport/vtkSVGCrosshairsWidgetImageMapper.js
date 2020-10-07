@@ -134,14 +134,19 @@ function vtkSVGCrosshairsWidgetImageMapper(publicAPI, model) {
       );
       svgWidgetManager.render();
 
-      if (viewportIndex == apiIndex) {
-        const istyle = renderWindow.getInteractor().getInteractorStyle();
-        const camera = renderer.getActiveCamera();
-        camera.setFocalPoint(...istyle.getSliceCenter());
+      //TODO make this callback
+      if (api.type === 'VIEW2D') {
+        if (viewportIndex == apiIndex) {
+          const istyle = renderWindow.getInteractor().getInteractorStyle();
+          const camera = renderer.getActiveCamera();
+          camera.setFocalPoint(...istyle.getSliceCenter());
+        } else {
+          const imageMapper = api.actors[0].getMapper();
+          const slice = imageMapper.getSliceAtPosition(worldPos);
+          imageMapper.setSlice(slice);
+        }
       } else {
-        const imageMapper = api.actors[0].getMapper();
-        const slice = imageMapper.getSliceAtPosition(worldPos);
-        imageMapper.setSlice(slice);
+        //TODO
       }
 
       renderWindow.render();
