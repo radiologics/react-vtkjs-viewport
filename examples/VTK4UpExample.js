@@ -309,57 +309,41 @@ function makeLabelMapColorTransferFunction(lablemapColorLUT) {
 
 const buildColorTransferFunction = (labelmap, colorLUT, opacity) => {
   // TODO -> It seems to crash if you set it higher than 256??
-  // const numColors = Math.min(256, colorLUT.length);
+  const numColors = Math.min(256, colorLUT.length);
 
-  // This commented out code will read the actual labelmap values, but we have one (?) volume
+  for (let i = 0; i < numColors; i++) {
+    const color = colorLUT[i];
+    labelmap.cfun.addRGBPoint(
+      i,
+      color[0] / 255,
+      color[1] / 255,
+      color[2] / 255
+    );
 
-  // for (let i = 0; i < numColors; i++) {
-  //   //for (let i = 0; i < colorLUT.length; i++) {
-  //   const color = colorLUT[i];
-  //   labelmap.cfun.addRGBPoint(
-  //     i,
-  //     color[0] / 255,
-  //     color[1] / 255,
-  //     color[2] / 255
-  //   );
-
-  //   // Set the opacity per label.
-  //   const segmentOpacity = (color[3] / 255) * opacity;
-  //   labelmap.ofun.addPointLong(i, segmentOpacity, 0.5, 1.0);
-  // }
-
-  labelmap.cfun.addRGBPoint(1, 1, 0, 0); // label '1' will be red
-  labelmap.ofun.addPointLong(1, 1.0, 0.5, 1.0); // All labels full opacity
+    // Set the opacity per label.
+    const segmentOpacity = (color[3] / 255) * opacity;
+    labelmap.ofun.addPointLong(i, segmentOpacity, 0.5, 1.0);
+  }
 };
 
 const generateSegVolume = (imageDataObject, segP10ArrayBuffer, imageIds) => {
   // Use dcmjs to extract a labelmap from the SEG.
   const {
     labelmapBuffer,
+    segMetadata,
   } = dcmjs.adapters.Cornerstone.Segmentation.generateToolState(
     imageIds,
     segP10ArrayBuffer,
     window.cornerstone.metaData
   );
 
-  // Create VTK Image Data with buffer as input
-  const labelmapDataObject = vtkImageData.newInstance();
-
-  // Set all labels the same, so this is more similar to our example.
-
-  const Uint16LabelmapBuffer = new Uint16Array(labelmapBuffer);
-
-  for (let i = 0; i < Uint16LabelmapBuffer.length; i++) {
-    if (Uint16LabelmapBuffer[i] !== 0) {
-      Uint16LabelmapBuffer[i] = 1;
-    }
-  }
-
   const dataArray = vtkDataArray.newInstance({
     numberOfComponents: 1, // labelmap with single component
-    values: Uint16LabelmapBuffer,
+    values: new Uint16Array(labelmapBuffer),
   });
 
+  // Create VTK Image Data with buffer as input
+  const labelmapDataObject = vtkImageData.newInstance();
   labelmapDataObject.getPointData().setScalars(dataArray);
   labelmapDataObject.setDimensions(...imageDataObject.dimensions);
   labelmapDataObject.setSpacing(...imageDataObject.vtkImageData.getSpacing());
@@ -371,7 +355,7 @@ const generateSegVolume = (imageDataObject, segP10ArrayBuffer, imageIds) => {
   const labelmapColorLUT = segmentationModule.state.colorLutTables[0];
 
   // Cache the labelmap volume.
-  return { labelmapDataObject, labelmapColorLUT };
+  return { labelmapDataObject, labelmapColorLUT, segMetadata };
 };
 
 async function fetchSegArrayBuffer(url) {
@@ -401,9 +385,7 @@ async function fetchSegArrayBuffer(url) {
 }
 
 class VTK4UPExample extends Component {
-  state = {
-    imageMappers: [],
-  };
+  state = {};
 
   async componentDidMount() {
     this.apis = [];
@@ -426,11 +408,11 @@ class VTK4UPExample extends Component {
     });
 
     const onAllPixelDataInsertedCallback = () => {
-      const { labelmapDataObject, labelmapColorLUT } = generateSegVolume(
-        imageDataObject,
-        seg,
-        imageIds
-      );
+      const {
+        labelmapDataObject,
+        labelmapColorLUT,
+        segMetadata,
+      } = generateSegVolume(imageDataObject, seg, imageIds);
 
       // Use one dataset, and 3 actors/mappers for the 3 different views
       // background image
@@ -489,30 +471,61 @@ class VTK4UPExample extends Component {
         imageActors.push(imageActor);
       }
 
-      // seg volume
-      const segRange = labelmapDataObject
-        .getPointData()
-        .getScalars()
-        .getRange();
-
-      const segMapper = vtkMapper.newInstance();
-      const segActor = vtkActor.newInstance();
-
+      // seg
       const labelmapTransferFunctions = makeLabelMapColorTransferFunction(
         labelmapColorLUT
       );
 
-      const marchingCube = vtkImageMarchingCubes.newInstance({
-        contourValue: (segRange[0] + segRange[1]) / 3,
-        computeNormals: true,
-        mergePoints: true,
-      });
-      marchingCube.setInputData(labelmapDataObject);
-      segActor.getProperty().setColor(1, 0, 0);
-      segActor.setMapper(segMapper);
-      segMapper.setInputConnection(marchingCube.getOutputPort());
+      // volume
+      let segActors = [];
+      for (let i = 0; i < segMetadata.data.length; i++) {
+        let md = segMetadata.data[i];
+        if (!md) {
+          continue;
+        }
 
-      // seg labelmapActors for 2D views
+        // set voxels not in this segment to 0
+        let dataVals = labelmapDataObject
+          .getPointData()
+          .getScalars()
+          .getData()
+          .map(function(item) {
+            return item != i ? 0 : item;
+          });
+
+        const dataArray = vtkDataArray.newInstance({
+          numberOfComponents: 1, // labelmap with single component
+          values: dataVals,
+        });
+
+        // new labelmap data object for this SegmentSequence
+        const seqSeqData = vtkImageData.newInstance();
+        seqSeqData.getPointData().setScalars(dataArray);
+        seqSeqData.setDimensions(...labelmapDataObject.getDimensions());
+        seqSeqData.setSpacing(...labelmapDataObject.getSpacing());
+        seqSeqData.setOrigin(...labelmapDataObject.getOrigin());
+        seqSeqData.setDirection(...labelmapDataObject.getDirection());
+
+        const segMapper = vtkMapper.newInstance();
+        const segActor = vtkActor.newInstance();
+
+        const marchingCube = vtkImageMarchingCubes.newInstance({
+          contourValue: 0.3,
+          computeNormals: true,
+          mergePoints: true,
+        });
+        marchingCube.setInputData(seqSeqData);
+
+        let color = [];
+        labelmapTransferFunctions.cfun.getColor(i, color);
+        segActor.getProperty().setColor(...color);
+        segActor.setMapper(segMapper);
+        segMapper.setInputConnection(marchingCube.getOutputPort());
+
+        segActors.push(segActor);
+      }
+
+      // labelmaps for 2D
       const outline = vtkImageOutlineFilter.newInstance();
       // opacity function for the outline filter
       const labelmapOFun = vtkPiecewiseFunction.newInstance();
@@ -581,7 +594,7 @@ class VTK4UPExample extends Component {
           K: labelmapActors[2],
           KFill: labelmapFillActors[2],
         },
-        marchingCubesActor: [segActor],
+        marchingCubesActors: segActors,
         paintFilterLabelMapImageData: labelmapDataObject,
         paintFilterBackgroundImageData: imageDataObject.vtkImageData,
         labelmapColorLUT,
@@ -650,8 +663,8 @@ class VTK4UPExample extends Component {
     if (
       !this.state.imageActors ||
       !this.state.labelmapActors ||
-      !this.state.marchingCubesActor ||
-      !this.state.marchingCubesActor.length
+      !this.state.marchingCubesActors ||
+      !this.state.marchingCubesActors.length
     ) {
       return <h4>Loading...</h4>;
     }
@@ -713,7 +726,7 @@ class VTK4UPExample extends Component {
           {/** 3D  View*/}
           <div className="col-sm-4">
             <View3DMarchingCubes
-              actors={this.state.marchingCubesActor}
+              actors={this.state.marchingCubesActors}
               planeMap={this.state.planeMap}
               onCreated={this.storeApi(3, '3D')}
             />
