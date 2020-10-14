@@ -15,6 +15,7 @@ const {
 class ViewportOverlay extends PureComponent {
   static propTypes = {
     voi: PropTypes.object.isRequired,
+    orientation: PropTypes.string,
     rotation: PropTypes.object,
     studyDate: PropTypes.string,
     studyTime: PropTypes.string,
@@ -42,6 +43,7 @@ class ViewportOverlay extends PureComponent {
       seriesNumber,
       seriesDescription,
       voi,
+      orientation,
       rotation,
     } = this.props;
     const { windowWidth, windowCenter } = voi;
@@ -67,6 +69,7 @@ class ViewportOverlay extends PureComponent {
         <div className="bottom-right overlay-element">
           <div>{wwwc}</div>
           <div>{rotationString}</div>
+          <div>{orientation}</div>
         </div>
         <div className="bottom-left overlay-element">
           <div>{seriesNumber >= 0 ? `Ser: ${seriesNumber}` : ''}</div>
