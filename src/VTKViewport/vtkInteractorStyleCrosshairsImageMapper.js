@@ -60,7 +60,8 @@ function vtkInteractorStyleCrosshairsImageMapper(publicAPI, model) {
 
     let worldCoords = api.get('cachedCrosshairWorldPosition');
     // we want to reuse the cached coords, replacing for our new slice (set by camera)
-    worldCoords[api.sliceMode] = camera.getFocalPoint()[api.sliceMode];
+    const idx = publicAPI.getSliceNormal().findIndex(i => i == 1 || i == -1);
+    worldCoords[idx] = camera.getFocalPoint()[idx];
     api.svgWidgets.crosshairsWidget.moveCrosshairs(worldCoords, apis, apiIndex);
 
     publicAPI.invokeInteractionEvent({ type: 'InteractionEvent' });
@@ -77,11 +78,9 @@ function vtkInteractorStyleCrosshairsImageMapper(publicAPI, model) {
 
   const superHandleLeftButtonPress = publicAPI.handleLeftButtonPress;
   publicAPI.handleLeftButtonPress = callData => {
-    if (!callData.shiftKey && !callData.controlKey) {
-      if (model.imageActor) {
-        publicAPI.moveCrosshairs(callData);
-        publicAPI.startPan();
-      }
+    if (model.imageActor && !callData.shiftKey && !callData.controlKey) {
+      publicAPI.moveCrosshairs(callData);
+      publicAPI.startPan();
     } else if (superHandleLeftButtonPress) {
       superHandleLeftButtonPress(callData);
     }

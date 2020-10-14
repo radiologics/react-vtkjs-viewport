@@ -102,7 +102,9 @@ export default class View3DMarchingCubes extends Component {
       } else {
         // TODO: Remove all actors
       }
-
+      this.renderer
+        .getActiveCamera()
+        .set({ position: [0, -1, 0], viewUp: [0, 0, 1] });
       this.renderWindow.render();
     }
     console.timeEnd('View3DMarchingCubes componentDidUpdate');
@@ -155,7 +157,7 @@ export default class View3DMarchingCubes extends Component {
       istyle.setViewport(currentViewport);
     }
 
-    if (istyle.getActor() !== actors[0]) {
+    if (istyle.getActor && istyle.getActor() !== actors[0]) {
       istyle.setActor(actors[0]);
     }
 

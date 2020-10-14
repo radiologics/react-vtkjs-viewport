@@ -18,9 +18,9 @@ export default class View2DImageMapper extends Component {
     onCreated: PropTypes.func,
     onDestroyed: PropTypes.func,
     orientation: PropTypes.string.isRequired,
+    orientationName: PropTypes.string,
+    labelmapRenderingOptions: PropTypes.object,
   };
-
-  static defaultProps = { orientation: 'K' };
 
   constructor(props) {
     super(props);
@@ -114,9 +114,11 @@ export default class View2DImageMapper extends Component {
       renderer.addViewProp(actor);
     });
 
-    labelmapActors.forEach(actor => {
-      labelmapRenderer.addViewProp(actor);
-    });
+    if (labelmapActors) {
+      labelmapActors.forEach(actor => {
+        labelmapRenderer.addViewProp(actor);
+      });
+    }
 
     let sliceMode;
 
@@ -154,20 +156,24 @@ export default class View2DImageMapper extends Component {
       actor.getMapper().setSlice(Math.floor(dimensionsOfSliceDirection / 2));
     });
 
-    // Set labelmaps
-    labelmapActors.forEach(actor => {
-      // Set slice orientation/mode and camera view
-      actor.getMapper().setSlicingMode(sliceMode);
+    if (labelmapActors) {
+      // Set labelmaps
+      labelmapActors.forEach(actor => {
+        // Set slice orientation/mode and camera view
+        actor.getMapper().setSlicingMode(sliceMode);
 
-      // Set middle slice.
-      actor.getMapper().setSlice(Math.floor(dimensionsOfSliceDirection / 2));
-    });
+        // Set middle slice.
+        actor.getMapper().setSlice(Math.floor(dimensionsOfSliceDirection / 2));
+      });
+    }
 
     // Update slices of labelmaps when source data slice changed
     imageMapper.onModified(() => {
-      labelmapActors.forEach(actor => {
-        actor.getMapper().setSlice(imageMapper.getSlice());
-      });
+      if (labelmapActors) {
+        labelmapActors.forEach(actor => {
+          actor.getMapper().setSlice(imageMapper.getSlice());
+        });
+      }
     });
 
     // Set up camera
@@ -175,6 +181,7 @@ export default class View2DImageMapper extends Component {
     const camera = this.renderer.getActiveCamera();
 
     camera.setParallelProjection(true);
+    labelmapRenderer.getActiveCamera().setParallelProjection(true);
 
     // set 2D camera position
     this.setCamera(sliceMode, renderer, actorVTKImageData);
@@ -204,6 +211,7 @@ export default class View2DImageMapper extends Component {
     const boundSetCamera = this.setCamera.bind(this);
     const boundUpdateImage = this.updateImage.bind(this);
     const boundGetSliceNormal = this.getSliceNormal.bind(this);
+    const boundRequestNewSegmentation = this.requestNewSegmentation.bind(this);
 
     this.svgWidgets = {};
 
@@ -231,6 +239,7 @@ export default class View2DImageMapper extends Component {
         getOrientation: boundGetOrienation,
         setInteractorStyle: boundSetInteractorStyle,
         getSliceNormal: boundGetSliceNormal,
+        requestNewSegmentation: boundRequestNewSegmentation,
         setCamera: boundSetCamera,
         get: boundGetApiProperty,
         set: boundSetApiProperty,
@@ -260,8 +269,11 @@ export default class View2DImageMapper extends Component {
 
   updateImage() {
     const renderWindow = this.genericRenderWindow.getRenderWindow();
-
     renderWindow.render();
+  }
+
+  requestNewSegmentation() {
+    this.props.labelmapRenderingOptions.onNewSegmentationRequested();
   }
 
   setInteractorStyle({ istyle, callbacks = {}, configuration = {} }) {
@@ -283,7 +295,7 @@ export default class View2DImageMapper extends Component {
     if (currentViewport) {
       istyle.setViewport(currentViewport);
     }
-    if (istyle.getImageActor() !== actors[0]) {
+    if (istyle.getImageActor && istyle.getImageActor() !== actors[0]) {
       istyle.setImageActor(actors[0]);
     }
     renderWindow.render();
@@ -318,7 +330,24 @@ export default class View2DImageMapper extends Component {
     data.indexToWorldVec3(ijk, focalPoint);
     ijk[sliceMode] = 1;
     data.indexToWorldVec3(ijk, position);
-    renderer.getActiveCamera().set({ focalPoint, position });
+
+    let viewUp;
+    // Use orientation prob to set slice direction
+    switch (sliceMode) {
+      case vtkImageMapper.SlicingMode.I:
+        //sag
+        viewUp = [0, 0, 1];
+        break;
+      case vtkImageMapper.SlicingMode.J:
+        //cor
+        viewUp = [0, 0, 1];
+        break;
+      case vtkImageMapper.SlicingMode.K:
+        //axial
+        viewUp = [0, -1, 0];
+        break;
+    }
+    renderer.getActiveCamera().set({ focalPoint, position, viewUp });
     renderer.resetCamera();
   }
 
@@ -363,7 +392,11 @@ export default class View2DImageMapper extends Component {
     return (
       <div style={style}>
         <div ref={this.container} style={style} />
-        <ViewportOverlay {...this.props.dataDetails} voi={voi} />
+        <ViewportOverlay
+          {...this.props.dataDetails}
+          voi={voi}
+          orientation={this.props.orientationName}
+        />
       </div>
     );
   }
