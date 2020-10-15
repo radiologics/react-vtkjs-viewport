@@ -126,24 +126,65 @@ export default class View2DImageMapper extends Component {
     const imageMapper = imageActor.getMapper();
     const actorVTKImageData = imageMapper.getInputData();
     const dimensions = actorVTKImageData.getDimensions();
+    const direction = actorVTKImageData.getDirection();
+    const plane1Orient = direction
+      .slice(0, 3)
+      .findIndex(i => Math.abs(Math.round(i)) === 1);
+    const plane2Orient = direction
+      .slice(3, 6)
+      .findIndex(i => Math.abs(Math.round(i)) === 1);
+    const plane3Orient = direction
+      .slice(6, 9)
+      .findIndex(i => Math.abs(Math.round(i)) === 1);
 
     let dimensionsOfSliceDirection;
+    let viewUp;
 
     const { orientation } = this.props;
 
-    // Use orientation prob to set slice direction
+    // Use orientation prop to set slice direction
     switch (orientation) {
-      case 'I':
-        sliceMode = vtkImageMapper.SlicingMode.I;
-        dimensionsOfSliceDirection = dimensions[0];
+      case 'Sagittal':
+        if (plane2Orient === 0) {
+          sliceMode = vtkImageMapper.SlicingMode.J;
+          dimensionsOfSliceDirection = dimensions[1];
+        } else if (plane3Orient === 0) {
+          sliceMode = vtkImageMapper.SlicingMode.K;
+          dimensionsOfSliceDirection = dimensions[2];
+        } else {
+          // already sag
+          sliceMode = vtkImageMapper.SlicingMode.I;
+          dimensionsOfSliceDirection = dimensions[0];
+        }
+        viewUp = [0, 0, 1];
         break;
-      case 'J':
-        sliceMode = vtkImageMapper.SlicingMode.J;
-        dimensionsOfSliceDirection = dimensions[1];
+      case 'Coronal':
+        if (plane1Orient === 1) {
+          sliceMode = vtkImageMapper.SlicingMode.I;
+          dimensionsOfSliceDirection = dimensions[0];
+        } else if (plane3Orient === 1) {
+          sliceMode = vtkImageMapper.SlicingMode.K;
+          dimensionsOfSliceDirection = dimensions[2];
+        } else {
+          // already cor
+          sliceMode = vtkImageMapper.SlicingMode.J;
+          dimensionsOfSliceDirection = dimensions[1];
+        }
+        viewUp = [0, 0, 1];
         break;
-      case 'K':
-        sliceMode = vtkImageMapper.SlicingMode.K;
-        dimensionsOfSliceDirection = dimensions[2];
+      case 'Axial':
+        if (plane1Orient === 2) {
+          sliceMode = vtkImageMapper.SlicingMode.I;
+          dimensionsOfSliceDirection = dimensions[0];
+        } else if (plane2Orient === 2) {
+          sliceMode = vtkImageMapper.SlicingMode.J;
+          dimensionsOfSliceDirection = dimensions[1];
+        } else {
+          // already ax
+          sliceMode = vtkImageMapper.SlicingMode.K;
+          dimensionsOfSliceDirection = dimensions[2];
+        }
+        viewUp = [0, -1, 0];
         break;
     }
 
@@ -184,7 +225,7 @@ export default class View2DImageMapper extends Component {
     labelmapRenderer.getActiveCamera().setParallelProjection(true);
 
     // set 2D camera position
-    this.setCamera(sliceMode, renderer, actorVTKImageData);
+    this.setCamera(sliceMode, viewUp, renderer, actorVTKImageData);
 
     const svgWidgetManager = vtkSVGWidgetManager.newInstance();
 
@@ -323,30 +364,13 @@ export default class View2DImageMapper extends Component {
     return this.props.orientation;
   }
 
-  setCamera(sliceMode, renderer, data) {
+  setCamera(sliceMode, viewUp, renderer, data) {
     const ijk = [0, 0, 0];
     const position = [0, 0, 0];
     const focalPoint = [0, 0, 0];
     data.indexToWorldVec3(ijk, focalPoint);
     ijk[sliceMode] = 1;
     data.indexToWorldVec3(ijk, position);
-
-    let viewUp;
-    // Use orientation prob to set slice direction
-    switch (sliceMode) {
-      case vtkImageMapper.SlicingMode.I:
-        //sag
-        viewUp = [0, 0, 1];
-        break;
-      case vtkImageMapper.SlicingMode.J:
-        //cor
-        viewUp = [0, 0, 1];
-        break;
-      case vtkImageMapper.SlicingMode.K:
-        //axial
-        viewUp = [0, -1, 0];
-        break;
-    }
     renderer.getActiveCamera().set({ focalPoint, position, viewUp });
     renderer.resetCamera();
   }
@@ -395,7 +419,7 @@ export default class View2DImageMapper extends Component {
         <ViewportOverlay
           {...this.props.dataDetails}
           voi={voi}
-          orientation={this.props.orientationName}
+          orientation={this.props.orientation}
         />
       </div>
     );

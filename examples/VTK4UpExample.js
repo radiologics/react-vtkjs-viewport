@@ -240,18 +240,6 @@ class VTK4UPExample extends Component {
 
     const mrImageDataObject = loadDataset(mrImageIds, 'mrDisplaySet');
 
-    // As we are using an image mapper, set the direction to upright rather than correctly oriented in 3D.
-
-    // Note: You may have to work out which direction to set in OHIF.
-    // Also for the views I and J are in plane, and K is out of plane.
-    // This demo data is sagittal, you may have to perform some logic on scans to put then in
-    // The correct slots for a 4 Up
-    mrImageDataObject.vtkImageData.setDirection(
-      ...[1, 0, 0],
-      ...[0, -1, 0],
-      ...[0, 0, -1]
-    );
-
     const seg = await fetchSegArrayBuffer(segURL);
 
     const { labelmapDataObject, labelmapColorLUT } = await generateSegVolume(
@@ -482,7 +470,7 @@ class VTK4UPExample extends Component {
                 this.state.labelmapActors.I,
               ]}
               onCreated={this.storeApi(0, '2D')}
-              orientation={'I'}
+              orientation={'Sagittal'}
             />
           </div>
           <div className="col-sm-4">
@@ -493,7 +481,7 @@ class VTK4UPExample extends Component {
                 this.state.labelmapActors.J,
               ]}
               onCreated={this.storeApi(1, '2D')}
-              orientation={'J'}
+              orientation={'Coronal'}
             />
           </div>
         </div>
@@ -506,7 +494,7 @@ class VTK4UPExample extends Component {
                 this.state.labelmapActors.K,
               ]}
               onCreated={this.storeApi(2, '2D')}
-              orientation={'K'}
+              orientation={'Axial'}
             />
           </div>
           {/** 3D  View*/}
