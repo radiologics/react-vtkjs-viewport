@@ -9,6 +9,7 @@ import vtkInteractorStyleRotatableMPRCrosshairs from './VTKViewport/vtkInteracto
 import vtkInteractorStyleCrosshairsImageMapper from './VTKViewport/vtkInteractorStyleCrosshairsImageMapper.js';
 import vtkInteractorStyleCrosshairsMarchingCubes from './VTKViewport/vtkInteractorStyleCrosshairsMarchingCubes.js';
 import vtkInteractorStyleMPRRotate from './VTKViewport/vtkInteractorStyleMPRRotate.js';
+import vtkInteractorStyleImageWindowLevel from './VTKViewport/vtkInteractorStyleImageWindowLevel.js';
 import vtkSVGWidgetManager from './VTKViewport/vtkSVGWidgetManager.js';
 import vtkSVGCrosshairsWidget from './VTKViewport/vtkSVGCrosshairsWidget.js';
 import vtkSVGCrosshairsWidgetImageMapper from './VTKViewport/vtkSVGCrosshairsWidgetImageMapper.js';
@@ -36,6 +37,7 @@ export {
   vtkInteractorStyleCrosshairsMarchingCubes,
   vtkInteractorStyleMPRRotate,
   vtkInteractorStyleMPRSlice,
+  vtkInteractorStyleImageWindowLevel,
   vtkSVGWidgetManager,
   vtkSVGCrosshairsWidget,
   vtkSVGRotatableCrosshairsWidget,
