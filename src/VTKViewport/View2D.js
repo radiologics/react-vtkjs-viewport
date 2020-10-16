@@ -94,6 +94,8 @@ export default class View2D extends Component {
       background: [0, 0, 0],
     });
 
+    console.log('TEST REMOTE RADIOLOGICS VERSION');
+
     this.genericRenderWindow.setContainer(this.container.current);
 
     let widgets = [];
