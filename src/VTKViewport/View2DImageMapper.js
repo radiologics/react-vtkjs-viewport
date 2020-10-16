@@ -56,7 +56,6 @@ export default class View2DImageMapper extends Component {
     let filters = [];
     let actors = this.props.actors;
     let labelmapActors = this.props.labelmapActors;
-    this.hikate = 'hi';
 
     const renderer = this.genericRenderWindow.getRenderer();
 
