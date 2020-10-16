@@ -146,6 +146,7 @@ export default class View2DImageMapper extends Component {
     let sliceMode;
     let dimensionsOfSliceDirection;
     let viewUp;
+    let flipped;
     const { orientation } = this.props;
 
     // Use orientation prop to set slice direction
@@ -161,12 +162,13 @@ export default class View2DImageMapper extends Component {
         }
         dimensionsOfSliceDirection = dimensions[sagPlane];
         viewUp = [0, 0, 1];
+        flipped = sagFlip;
         this.setState({
           neswMetadata: {
             n: 'S',
             s: 'I',
-            e: sagFlip ? 'A' : 'P',
-            w: sagFlip ? 'P' : 'A',
+            e: 'P',
+            w: 'A',
           },
         });
         break;
@@ -181,12 +183,13 @@ export default class View2DImageMapper extends Component {
         }
         dimensionsOfSliceDirection = dimensions[corPlane];
         viewUp = [0, 0, 1];
+        flipped = corFlip;
         this.setState({
           neswMetadata: {
             n: 'S',
             s: 'I',
-            e: sagFlip ? 'L' : 'R',
-            w: sagFlip ? 'R' : 'L',
+            e: 'R',
+            w: 'L',
           },
         });
         break;
@@ -201,12 +204,13 @@ export default class View2DImageMapper extends Component {
         }
         dimensionsOfSliceDirection = dimensions[axPlane];
         viewUp = [0, -1, 0];
+        flipped = axFlip;
         this.setState({
           neswMetadata: {
             n: 'A',
             s: 'P',
-            e: sagFlip ? 'L' : 'R',
-            w: sagFlip ? 'R' : 'L',
+            e: 'R',
+            w: 'L',
           },
         });
         break;
@@ -242,14 +246,13 @@ export default class View2DImageMapper extends Component {
     });
 
     // Set up camera
-
     const camera = this.renderer.getActiveCamera();
 
     camera.setParallelProjection(true);
     labelmapRenderer.getActiveCamera().setParallelProjection(true);
 
     // set 2D camera position
-    this.setCamera(sliceMode, viewUp, renderer, actorVTKImageData);
+    this.setCamera(sliceMode, flipped, viewUp, renderer, actorVTKImageData);
 
     const svgWidgetManager = vtkSVGWidgetManager.newInstance();
 
@@ -388,12 +391,12 @@ export default class View2DImageMapper extends Component {
     return this.props.orientation;
   }
 
-  setCamera(sliceMode, viewUp, renderer, data) {
+  setCamera(sliceMode, flipped, viewUp, renderer, data) {
     const ijk = [0, 0, 0];
     const position = [0, 0, 0];
     const focalPoint = [0, 0, 0];
     data.indexToWorldVec3(ijk, focalPoint);
-    ijk[sliceMode] = 1;
+    ijk[sliceMode] = flipped ? -1 : 1;
     data.indexToWorldVec3(ijk, position);
     renderer.getActiveCamera().set({ focalPoint, position, viewUp });
     renderer.resetCamera();
