@@ -255,7 +255,35 @@ class VTK4UPExample extends Component {
       // Use one dataset, and 3 actors/mappers for the 3 different views
       const mrImageData = mrImageDataObject.vtkImageData;
 
-      this.direction = mrImageDataObject.vtkImageData.getDirection();
+      const direction = mrImageData.getDirection();
+      const planes = [
+        direction.slice(0, 3),
+        direction.slice(3, 6),
+        direction.slice(6, 9),
+      ];
+      const orient = planes.map(arr =>
+        arr.findIndex(i => Math.abs(Math.round(i)) === 1)
+      );
+      const planeMap = {
+        Sagittal: {
+          plane: orient.indexOf(0),
+        },
+        Coronal: {
+          plane: orient.indexOf(1),
+        },
+        Axial: {
+          plane: orient.indexOf(2),
+        },
+      };
+      planeMap.Sagittal.flip = planes[planeMap.Sagittal.plane].some(
+        i => Math.round(i) === -1
+      );
+      planeMap.Coronal.flip = planes[planeMap.Coronal.plane].some(
+        i => Math.round(i) === -1
+      );
+      planeMap.Coronal.flip = planes[planeMap.Coronal.plane].some(
+        i => Math.round(i) === -1
+      );
 
       const range = mrImageData
         .getPointData()
@@ -380,6 +408,7 @@ class VTK4UPExample extends Component {
         paintFilterBackgroundImageData: mrImageDataObject.vtkImageData,
         labelmapColorLUT,
         displayCrosshairs: true,
+        planeMap,
       });
     };
 
@@ -471,6 +500,7 @@ class VTK4UPExample extends Component {
                 this.state.labelmapActors.IFill,
                 this.state.labelmapActors.I,
               ]}
+              planeMap={this.state.planeMap}
               onCreated={this.storeApi(0, '2D')}
               orientation={'Sagittal'}
             />
@@ -482,6 +512,7 @@ class VTK4UPExample extends Component {
                 this.state.labelmapActors.JFill,
                 this.state.labelmapActors.J,
               ]}
+              planeMap={this.state.planeMap}
               onCreated={this.storeApi(1, '2D')}
               orientation={'Coronal'}
             />
@@ -495,6 +526,7 @@ class VTK4UPExample extends Component {
                 this.state.labelmapActors.KFill,
                 this.state.labelmapActors.K,
               ]}
+              planeMap={this.state.planeMap}
               onCreated={this.storeApi(2, '2D')}
               orientation={'Axial'}
             />
@@ -503,7 +535,7 @@ class VTK4UPExample extends Component {
           <div className="col-sm-4">
             <View3DMarchingCubes
               actors={this.state.marchingCubesActor}
-              sourceDataDirection={this.direction}
+              planeMap={this.state.planeMap}
               onCreated={this.storeApi(3, '3D')}
             />
           </div>

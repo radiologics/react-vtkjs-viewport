@@ -20,6 +20,7 @@ export default class View2DImageMapper extends Component {
     orientation: PropTypes.string.isRequired,
     orientationName: PropTypes.string,
     labelmapRenderingOptions: PropTypes.object,
+    planeMap: PropTypes.object,
   };
 
   constructor(props) {
@@ -124,88 +125,56 @@ export default class View2DImageMapper extends Component {
     const imageMapper = imageActor.getMapper();
     const actorVTKImageData = imageMapper.getInputData();
     const dimensions = actorVTKImageData.getDimensions();
-    const direction = actorVTKImageData.getDirection();
-    const planes = [
-      direction.slice(0, 3),
-      direction.slice(3, 6),
-      direction.slice(6, 9),
-    ];
-    const orient = planes.map(arr =>
-      arr.findIndex(i => Math.abs(Math.round(i)) === 1)
-    );
 
-    const sagPlane = orient.indexOf(0);
-    const corPlane = orient.indexOf(1);
-    const axPlane = orient.indexOf(2);
-
-    const sagFlip = planes[sagPlane].some(i => Math.round(i) === -1);
-    const corFlip = planes[corPlane].some(i => Math.round(i) === -1);
-    const axFlip = planes[axPlane].some(i => Math.round(i) === -1);
-
+    const { orientation, planeMap } = this.props;
     let sliceMode;
-    let dimensionsOfSliceDirection;
-    let viewUp;
-    const { orientation } = this.props;
+    switch (planeMap[orientation].plane) {
+      case 0:
+        sliceMode = vtkImageMapper.SlicingMode.I;
+        break;
+      case 1:
+        sliceMode = vtkImageMapper.SlicingMode.J;
+        break;
+      case 2:
+        sliceMode = vtkImageMapper.SlicingMode.K;
+        break;
+    }
+    const dimensionsOfSliceDirection = dimensions[planeMap[orientation].plane];
+    const flipped = planeMap[orientation].flip;
 
-    // Use orientation prop to set slice direction
+    let viewUp;
+    // Use orientation to set viewUp and N/S/E/W overlay
     switch (orientation) {
       case 'Sagittal':
-        if (sagPlane === 1) {
-          sliceMode = vtkImageMapper.SlicingMode.J;
-        } else if (sagPlane === 2) {
-          sliceMode = vtkImageMapper.SlicingMode.K;
-        } else {
-          // already sag
-          sliceMode = vtkImageMapper.SlicingMode.I;
-        }
-        dimensionsOfSliceDirection = dimensions[sagPlane];
         viewUp = [0, 0, 1];
         this.setState({
           neswMetadata: {
             n: 'S',
             s: 'I',
-            e: sagFlip ? 'A' : 'P',
-            w: sagFlip ? 'P' : 'A',
+            e: 'P',
+            w: 'A',
           },
         });
         break;
       case 'Coronal':
-        if (corPlane === 0) {
-          sliceMode = vtkImageMapper.SlicingMode.I;
-        } else if (corPlane === 2) {
-          sliceMode = vtkImageMapper.SlicingMode.K;
-        } else {
-          // already cor
-          sliceMode = vtkImageMapper.SlicingMode.J;
-        }
-        dimensionsOfSliceDirection = dimensions[corPlane];
         viewUp = [0, 0, 1];
         this.setState({
           neswMetadata: {
             n: 'S',
             s: 'I',
-            e: sagFlip ? 'L' : 'R',
-            w: sagFlip ? 'R' : 'L',
+            e: 'R',
+            w: 'L',
           },
         });
         break;
       case 'Axial':
-        if (axPlane === 0) {
-          sliceMode = vtkImageMapper.SlicingMode.I;
-        } else if (axPlane === 1) {
-          sliceMode = vtkImageMapper.SlicingMode.J;
-        } else {
-          // already ax
-          sliceMode = vtkImageMapper.SlicingMode.K;
-        }
-        dimensionsOfSliceDirection = dimensions[axPlane];
         viewUp = [0, -1, 0];
         this.setState({
           neswMetadata: {
             n: 'A',
             s: 'P',
-            e: sagFlip ? 'L' : 'R',
-            w: sagFlip ? 'R' : 'L',
+            e: 'R',
+            w: 'L',
           },
         });
         break;
@@ -241,14 +210,13 @@ export default class View2DImageMapper extends Component {
     });
 
     // Set up camera
-
     const camera = this.renderer.getActiveCamera();
 
     camera.setParallelProjection(true);
     labelmapRenderer.getActiveCamera().setParallelProjection(true);
 
     // set 2D camera position
-    this.setCamera(sliceMode, viewUp, renderer, actorVTKImageData);
+    this.setCamera(sliceMode, flipped, viewUp, renderer, actorVTKImageData);
 
     const svgWidgetManager = vtkSVGWidgetManager.newInstance();
 
@@ -387,12 +355,12 @@ export default class View2DImageMapper extends Component {
     return this.props.orientation;
   }
 
-  setCamera(sliceMode, viewUp, renderer, data) {
+  setCamera(sliceMode, flipped, viewUp, renderer, data) {
     const ijk = [0, 0, 0];
     const position = [0, 0, 0];
     const focalPoint = [0, 0, 0];
     data.indexToWorldVec3(ijk, focalPoint);
-    ijk[sliceMode] = 1;
+    ijk[sliceMode] = flipped ? -1 : 1;
     data.indexToWorldVec3(ijk, position);
     renderer.getActiveCamera().set({ focalPoint, position, viewUp });
     renderer.resetCamera();
