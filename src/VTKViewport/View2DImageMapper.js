@@ -120,71 +120,94 @@ export default class View2DImageMapper extends Component {
       });
     }
 
-    let sliceMode;
-
     const imageActor = actors[0];
     const imageMapper = imageActor.getMapper();
     const actorVTKImageData = imageMapper.getInputData();
     const dimensions = actorVTKImageData.getDimensions();
     const direction = actorVTKImageData.getDirection();
-    const plane1Orient = direction
-      .slice(0, 3)
-      .findIndex(i => Math.abs(Math.round(i)) === 1);
-    const plane2Orient = direction
-      .slice(3, 6)
-      .findIndex(i => Math.abs(Math.round(i)) === 1);
-    const plane3Orient = direction
-      .slice(6, 9)
-      .findIndex(i => Math.abs(Math.round(i)) === 1);
+    const planes = [
+      direction.slice(0, 3),
+      direction.slice(3, 6),
+      direction.slice(6, 9),
+    ];
+    const orient = planes.map(arr =>
+      arr.findIndex(i => Math.abs(Math.round(i)) === 1)
+    );
 
+    const sagPlane = orient.indexOf(0);
+    const corPlane = orient.indexOf(1);
+    const axPlane = orient.indexOf(2);
+
+    const sagFlip = planes[sagPlane].some(i => Math.round(i) === -1);
+    const corFlip = planes[corPlane].some(i => Math.round(i) === -1);
+    const axFlip = planes[axPlane].some(i => Math.round(i) === -1);
+
+    let sliceMode;
     let dimensionsOfSliceDirection;
     let viewUp;
-
     const { orientation } = this.props;
 
     // Use orientation prop to set slice direction
     switch (orientation) {
       case 'Sagittal':
-        if (plane2Orient === 0) {
+        if (sagPlane === 1) {
           sliceMode = vtkImageMapper.SlicingMode.J;
-          dimensionsOfSliceDirection = dimensions[1];
-        } else if (plane3Orient === 0) {
+        } else if (sagPlane === 2) {
           sliceMode = vtkImageMapper.SlicingMode.K;
-          dimensionsOfSliceDirection = dimensions[2];
         } else {
           // already sag
           sliceMode = vtkImageMapper.SlicingMode.I;
-          dimensionsOfSliceDirection = dimensions[0];
         }
+        dimensionsOfSliceDirection = dimensions[sagPlane];
         viewUp = [0, 0, 1];
+        this.setState({
+          neswMetadata: {
+            n: 'S',
+            s: 'I',
+            e: sagFlip ? 'A' : 'P',
+            w: sagFlip ? 'P' : 'A',
+          },
+        });
         break;
       case 'Coronal':
-        if (plane1Orient === 1) {
+        if (corPlane === 0) {
           sliceMode = vtkImageMapper.SlicingMode.I;
-          dimensionsOfSliceDirection = dimensions[0];
-        } else if (plane3Orient === 1) {
+        } else if (corPlane === 2) {
           sliceMode = vtkImageMapper.SlicingMode.K;
-          dimensionsOfSliceDirection = dimensions[2];
         } else {
           // already cor
           sliceMode = vtkImageMapper.SlicingMode.J;
-          dimensionsOfSliceDirection = dimensions[1];
         }
+        dimensionsOfSliceDirection = dimensions[corPlane];
         viewUp = [0, 0, 1];
+        this.setState({
+          neswMetadata: {
+            n: 'S',
+            s: 'I',
+            e: sagFlip ? 'R' : 'L',
+            w: sagFlip ? 'L' : 'R',
+          },
+        });
         break;
       case 'Axial':
-        if (plane1Orient === 2) {
+        if (axPlane === 0) {
           sliceMode = vtkImageMapper.SlicingMode.I;
-          dimensionsOfSliceDirection = dimensions[0];
-        } else if (plane2Orient === 2) {
+        } else if (axPlane === 1) {
           sliceMode = vtkImageMapper.SlicingMode.J;
-          dimensionsOfSliceDirection = dimensions[1];
         } else {
           // already ax
           sliceMode = vtkImageMapper.SlicingMode.K;
-          dimensionsOfSliceDirection = dimensions[2];
         }
+        dimensionsOfSliceDirection = dimensions[axPlane];
         viewUp = [0, -1, 0];
+        this.setState({
+          neswMetadata: {
+            n: 'A',
+            s: 'P',
+            e: sagFlip ? 'R' : 'L',
+            w: sagFlip ? 'L' : 'R',
+          },
+        });
         break;
     }
 
@@ -378,7 +401,6 @@ export default class View2DImageMapper extends Component {
   getSliceNormal() {
     const renderWindow = this.genericRenderWindow.getRenderWindow();
     const currentIStyle = renderWindow.getInteractor().getInteractorStyle();
-
     return currentIStyle.getSliceNormal();
   }
 
@@ -420,6 +442,7 @@ export default class View2DImageMapper extends Component {
           {...this.props.dataDetails}
           voi={voi}
           orientation={this.props.orientation}
+          neswMetadata={this.state.neswMetadata}
         />
       </div>
     );

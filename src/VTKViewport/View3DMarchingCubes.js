@@ -3,12 +3,16 @@ import PropTypes from 'prop-types';
 import vtkGenericRenderWindow from 'vtk.js/Sources/Rendering/Misc/GenericRenderWindow';
 import vtkWidgetManager from 'vtk.js/Sources/Widgets/Core/WidgetManager';
 import vtkSVGWidgetManager from './vtkSVGWidgetManager';
+import vtkOrientationMarkerWidget from 'vtk.js/Sources/Interaction/Widgets/OrientationMarkerWidget';
+import vtkAnnotatedCubeActor from 'vtk.js/Sources/Rendering/Core/AnnotatedCubeActor';
+import AnnotatedCubePresets from 'vtk.js/Sources/Rendering/Core/AnnotatedCubeActor/Presets';
 
 import { createSub } from '../lib/createSub.js';
 
 export default class View3DMarchingCubes extends Component {
   static propTypes = {
     actors: PropTypes.array,
+    sourceDataDirection: PropTypes.object,
     onCreated: PropTypes.func,
     onDestroyed: PropTypes.func,
     dataDetails: PropTypes.object,
@@ -38,9 +42,100 @@ export default class View3DMarchingCubes extends Component {
 
     this.renderer = this.genericRenderWindow.getRenderer();
     this.renderWindow = this.genericRenderWindow.getRenderWindow();
+    const interactor = this.renderWindow.getInteractor();
 
     this.widgetManager.disablePicking();
     this.widgetManager.setRenderer(this.renderer);
+
+    // setup orientation widget
+    this.axes = vtkAnnotatedCubeActor.newInstance();
+    this.orientationWidget = vtkOrientationMarkerWidget.newInstance({
+      actor: this.axes,
+      interactor: interactor,
+    });
+
+    if (this.props.sourceDataDirection) {
+      const direction = this.props.sourceDataDirection;
+      const planes = [
+        direction.slice(0, 3),
+        direction.slice(3, 6),
+        direction.slice(6, 9),
+      ];
+      const orient = planes.map(arr =>
+        arr.findIndex(i => Math.abs(Math.round(i)) === 1)
+      );
+
+      const sagPlane = orient.indexOf(0);
+      const corPlane = orient.indexOf(1);
+      const axPlane = orient.indexOf(2);
+
+      const sagFlip = planes[sagPlane].some(i => Math.round(i) === -1);
+      const corFlip = planes[corPlane].some(i => Math.round(i) === -1);
+      const axFlip = planes[axPlane].some(i => Math.round(i) === -1);
+
+      const lpsPresets = vtkAnnotatedCubeActor.newInstance();
+      AnnotatedCubePresets.applyPreset('lps', lpsPresets);
+      let sagPlus, sagMinus;
+      if (sagFlip) {
+        sagPlus = lpsPresets.getXMinusFaceProperty();
+        sagMinus = lpsPresets.getXPlusFaceProperty();
+      } else {
+        sagPlus = lpsPresets.getXPlusFaceProperty();
+        sagMinus = lpsPresets.getXMinusFaceProperty();
+      }
+
+      let corPlus, corMinus;
+      if (corFlip) {
+        corPlus = lpsPresets.getYMinusFaceProperty();
+        corMinus = lpsPresets.getYPlusFaceProperty();
+      } else {
+        corPlus = lpsPresets.getYPlusFaceProperty();
+        corMinus = lpsPresets.getYMinusFaceProperty();
+      }
+
+      let axPlus, axMinus;
+      if (axFlip) {
+        axPlus = lpsPresets.getZMinusFaceProperty();
+        axMinus = lpsPresets.getZPlusFaceProperty();
+      } else {
+        axPlus = lpsPresets.getZPlusFaceProperty();
+        axMinus = lpsPresets.getZMinusFaceProperty();
+      }
+
+      if (sagPlane === 0) {
+        this.axes.setXMinusFaceProperty(sagMinus);
+        this.axes.setXPlusFaceProperty(sagPlus);
+      } else if (corPlane === 0) {
+        this.axes.setXMinusFaceProperty(corMinus);
+        this.axes.setXPlusFaceProperty(corPlus);
+      } else if (axPlane === 0) {
+        this.axes.setXMinusFaceProperty(axMinus);
+        this.axes.setXPlusFaceProperty(axPlus);
+      }
+      if (sagPlane === 1) {
+        this.axes.setYMinusFaceProperty(sagMinus);
+        this.axes.setYPlusFaceProperty(sagPlus);
+      } else if (corPlane === 1) {
+        this.axes.setYMinusFaceProperty(corMinus);
+        this.axes.setYPlusFaceProperty(corPlus);
+      } else if (axPlane === 1) {
+        this.axes.setYMinusFaceProperty(axMinus);
+        this.axes.setYPlusFaceProperty(axPlus);
+      }
+      if (sagPlane === 2) {
+        this.axes.setZMinusFaceProperty(sagMinus);
+        this.axes.setZPlusFaceProperty(sagPlus);
+      } else if (corPlane === 2) {
+        this.axes.setZMinusFaceProperty(corMinus);
+        this.axes.setZPlusFaceProperty(corPlus);
+      } else if (axPlane === 2) {
+        this.axes.setZMinusFaceProperty(axMinus);
+        this.axes.setZPlusFaceProperty(axPlus);
+      }
+
+      window.addEventListener('resize', this.genericRenderWindow.resize);
+      window.addEventListener('resize', this.orientationWidget.updateViewport);
+    }
 
     // trigger pipeline update
     this.componentDidUpdate({});
@@ -105,6 +200,12 @@ export default class View3DMarchingCubes extends Component {
       this.renderer
         .getActiveCamera()
         .set({ position: [0, -1, 0], viewUp: [0, 0, 1] });
+      this.orientationWidget.setEnabled(true);
+      this.orientationWidget.setViewportCorner(
+        vtkOrientationMarkerWidget.Corners.BOTTOM_RIGHT
+      );
+      this.orientationWidget.setMinPixelSize(50);
+      this.orientationWidget.setMaxPixelSize(500);
       this.renderWindow.render();
     }
     console.timeEnd('View3DMarchingCubes componentDidUpdate');
