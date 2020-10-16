@@ -281,7 +281,7 @@ class VTK4UPExample extends Component {
       planeMap.Coronal.flip = planes[planeMap.Coronal.plane].some(
         i => Math.round(i) === -1
       );
-      planeMap.Coronal.flip = planes[planeMap.Coronal.plane].some(
+      planeMap.Axial.flip = planes[planeMap.Axial.plane].some(
         i => Math.round(i) === -1
       );
 
