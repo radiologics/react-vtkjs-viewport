@@ -184,8 +184,8 @@ export default class View2DImageMapper extends Component {
           neswMetadata: {
             n: 'S',
             s: 'I',
-            e: sagFlip ? 'R' : 'L',
-            w: sagFlip ? 'L' : 'R',
+            e: sagFlip ? 'L' : 'R',
+            w: sagFlip ? 'R' : 'L',
           },
         });
         break;
@@ -204,8 +204,8 @@ export default class View2DImageMapper extends Component {
           neswMetadata: {
             n: 'A',
             s: 'P',
-            e: sagFlip ? 'R' : 'L',
-            w: sagFlip ? 'L' : 'R',
+            e: sagFlip ? 'L' : 'R',
+            w: sagFlip ? 'R' : 'L',
           },
         });
         break;
