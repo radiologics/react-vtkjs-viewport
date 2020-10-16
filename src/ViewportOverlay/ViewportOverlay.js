@@ -17,6 +17,7 @@ class ViewportOverlay extends PureComponent {
     voi: PropTypes.object.isRequired,
     orientation: PropTypes.string,
     rotation: PropTypes.object,
+    neswMetadata: PropTypes.object,
     studyDate: PropTypes.string,
     studyTime: PropTypes.string,
     studyDescription: PropTypes.string,
@@ -30,6 +31,12 @@ class ViewportOverlay extends PureComponent {
     voi: {
       windowWidth: 0,
       windowCenter: 0,
+    },
+    neswMetadata: {
+      n: '',
+      s: '',
+      e: '',
+      w: '',
     },
   };
 
@@ -45,6 +52,7 @@ class ViewportOverlay extends PureComponent {
       voi,
       orientation,
       rotation,
+      neswMetadata,
     } = this.props;
     const { windowWidth, windowCenter } = voi;
     const wwwc = `W: ${windowWidth.toFixed(0)} L: ${windowCenter.toFixed(0)}`;
@@ -60,16 +68,28 @@ class ViewportOverlay extends PureComponent {
           <div>{formatPN(patientName)}</div>
           <div>{patientId}</div>
         </div>
+        <div className="top-center overlay-element">
+          <div>{neswMetadata.n}</div>
+        </div>
         <div className="top-right overlay-element">
           <div>{studyDescription}</div>
           <div>
             {formatDA(studyDate)} {formatTM(studyTime)}
           </div>
         </div>
+        <div className="center-left overlay-element">
+          <div>{neswMetadata.w}</div>
+        </div>
+        <div className="center-right overlay-element">
+          <div>{neswMetadata.e}</div>
+        </div>
         <div className="bottom-right overlay-element">
           <div>{wwwc}</div>
           <div>{rotationString}</div>
           <div>{orientation}</div>
+        </div>
+        <div className="bottom-center overlay-element">
+          <div>{neswMetadata.s}</div>
         </div>
         <div className="bottom-left overlay-element">
           <div>{seriesNumber >= 0 ? `Ser: ${seriesNumber}` : ''}</div>

@@ -19,8 +19,7 @@
 }
 
 .ViewportOverlay .top-center {
-  top: var(--viewport-tag-padding);
-  padding-top: var(--viewport-tag-padding);
+  top: 1px;
   width: 100%;
   text-align: center;
 }
@@ -39,6 +38,24 @@
 .ViewportOverlay .bottom-right {
   bottom: var(--viewport-tag-padding);
   right: var(--viewport-tag-padding);
+  text-align: right;
+}
+
+.ViewportOverlay .bottom-center {
+  bottom: 1px;
+  width: 100%;
+  text-align: center;
+}
+
+.ViewportOverlay .center-left {
+  left: 1px;
+  top: 50%;
+  text-align: left;
+}
+
+.ViewportOverlay .center-right {
+  right: 1px;
+  top: 50%;
   text-align: right;
 }
 
