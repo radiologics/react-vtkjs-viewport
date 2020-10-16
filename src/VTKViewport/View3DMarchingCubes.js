@@ -181,7 +181,7 @@ export default class View3DMarchingCubes extends Component {
       const { planeMap } = this.props;
       const position = [0, 0, 0];
       position[planeMap.Sagittal.plane] = planeMap.Sagittal.flip ? -1 : 1;
-      this.renderer.getActiveCamera().set({ position, viewUp: [0, -1, 0] });
+      this.renderer.getActiveCamera().set({ position, viewUp: [0, 0, 1] });
       this.orientationWidget.setEnabled(true);
       this.orientationWidget.setViewportCorner(
         vtkOrientationMarkerWidget.Corners.BOTTOM_RIGHT
