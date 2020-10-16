@@ -1,11 +1,10 @@
 import React, { Component } from 'react';
-import PropTypes from 'prop-types';
+import PropTypes, { func } from 'prop-types';
 import vtkGenericRenderWindow from 'vtk.js/Sources/Rendering/Misc/GenericRenderWindow';
 import vtkWidgetManager from 'vtk.js/Sources/Widgets/Core/WidgetManager';
 import vtkSVGWidgetManager from './vtkSVGWidgetManager';
 import vtkOrientationMarkerWidget from 'vtk.js/Sources/Interaction/Widgets/OrientationMarkerWidget';
 import vtkAnnotatedCubeActor from 'vtk.js/Sources/Rendering/Core/AnnotatedCubeActor';
-import AnnotatedCubePresets from 'vtk.js/Sources/Rendering/Core/AnnotatedCubeActor/Presets';
 
 import { createSub } from '../lib/createSub.js';
 
@@ -55,13 +54,68 @@ export default class View3DMarchingCubes extends Component {
       interactor: interactor,
     });
 
-    if (this.props.planeMap) {
-      //const lpsPresets = vtkAnnotatedCubeActor.newInstance();
-      AnnotatedCubePresets.applyPreset('lps', this.axes);
+    const { planeMap } = this.props;
+    const setAxes = function(key) {
+      const value = planeMap[key];
+      const flip = value.flip;
+      let plusText, minusText, plusRotation, minusRotation;
+      switch (key) {
+        case 'Sagittal':
+          if (flip) {
+            (minusText = 'L'), (minusRotation = -90);
+            (plusText = 'R'), (plusRotation = 90);
+          } else {
+            (minusText = 'R'), (minusRotation = -90);
+            (plusText = 'L'), (plusRotation = 90);
+          }
+          break;
+        case 'Coronal':
+          if (flip) {
+            (minusText = 'P'), (minusRotation = 0);
+            (plusText = 'A'), (plusRotation = 180);
+          } else {
+            (minusText = 'A'), (minusRotation = 0);
+            (plusText = 'P'), (plusRotation = 180);
+          }
+          break;
+        case 'Axial':
+          if (flip) {
+            (minusText = 'S'), (minusRotation = 180);
+            (plusText = 'I'), (plusRotation = 0);
+          } else {
+            (minusText = 'I'), (minusRotation = 180);
+            (plusText = 'S'), (plusRotation = 0);
+          }
+          break;
+      }
+      let plusSetterFn, minusSetterFn;
+      switch (value.plane) {
+        case 0:
+          minusSetterFn = this.axes.setXMinusFaceProperty;
+          plusSetterFn = this.axes.setXPlusFaceProperty;
+          break;
+        case 1:
+          minusSetterFn = this.axes.setYMinusFaceProperty;
+          plusSetterFn = this.axes.setYPlusFaceProperty;
+          break;
+        case 2:
+          minusSetterFn = this.axes.setZMinusFaceProperty;
+          plusSetterFn = this.axes.setZPlusFaceProperty;
+          break;
+      }
+      plusSetterFn({
+        text: plusText,
+        faceRotation: plusRotation,
+      });
+      minusSetterFn({
+        text: minusText,
+        faceRotation: minusRotation,
+      });
+    }.bind(this);
+    Object.keys(planeMap).forEach(setAxes);
 
-      window.addEventListener('resize', this.genericRenderWindow.resize);
-      window.addEventListener('resize', this.orientationWidget.updateViewport);
-    }
+    window.addEventListener('resize', this.genericRenderWindow.resize);
+    window.addEventListener('resize', this.orientationWidget.updateViewport);
 
     // trigger pipeline update
     this.componentDidUpdate({});
@@ -123,9 +177,11 @@ export default class View3DMarchingCubes extends Component {
       } else {
         // TODO: Remove all actors
       }
-      this.renderer
-        .getActiveCamera()
-        .set({ position: [0, -1, 0], viewUp: [0, 0, 1] });
+      // show sagittal view
+      const { planeMap } = this.props;
+      const position = [0, 0, 0];
+      position[planeMap.Sagittal.plane] = planeMap.Sagittal.flip ? -1 : 1;
+      this.renderer.getActiveCamera().set({ position, viewUp: [0, -1, 0] });
       this.orientationWidget.setEnabled(true);
       this.orientationWidget.setViewportCorner(
         vtkOrientationMarkerWidget.Corners.BOTTOM_RIGHT
