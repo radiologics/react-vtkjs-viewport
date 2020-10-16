@@ -255,6 +255,8 @@ class VTK4UPExample extends Component {
       // Use one dataset, and 3 actors/mappers for the 3 different views
       const mrImageData = mrImageDataObject.vtkImageData;
 
+      this.direction = mrImageDataObject.vtkImageData.getDirection();
+
       const range = mrImageData
         .getPointData()
         .getScalars()
@@ -501,6 +503,7 @@ class VTK4UPExample extends Component {
           <div className="col-sm-4">
             <View3DMarchingCubes
               actors={this.state.marchingCubesActor}
+              sourceDataDirection={this.direction}
               onCreated={this.storeApi(3, '3D')}
             />
           </div>
