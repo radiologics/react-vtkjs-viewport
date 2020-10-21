@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import PropTypes, { func } from 'prop-types';
+import PropTypes from 'prop-types';
 import vtkGenericRenderWindow from 'vtk.js/Sources/Rendering/Misc/GenericRenderWindow';
 import vtkWidgetManager from 'vtk.js/Sources/Widgets/Core/WidgetManager';
 import vtkSVGWidgetManager from './vtkSVGWidgetManager';
@@ -53,6 +53,11 @@ export default class View3DMarchingCubes extends Component {
       actor: this.axes,
       interactor: interactor,
     });
+    this.orientationWidget.setViewportCorner(
+      vtkOrientationMarkerWidget.Corners.BOTTOM_RIGHT
+    );
+    this.orientationWidget.setMinPixelSize(50);
+    this.orientationWidget.setMaxPixelSize(500);
 
     const { planeMap } = this.props;
     const setAxes = function(key) {
@@ -177,30 +182,24 @@ export default class View3DMarchingCubes extends Component {
       } else {
         // TODO: Remove all actors
       }
+
       // show sagittal view
       const { planeMap } = this.props;
       const normal = [0, 0, 0];
       normal[planeMap.Sagittal.plane] = planeMap.Sagittal.flip ? -1 : 1;
-
       const viewUp = [0, 0, 0];
-
       viewUp[planeMap.Axial.plane] = planeMap.Axial.flip ? -1 : 1;
 
+      // Set camera
       const camera = this.renderer.getActiveCamera();
-
       // Direction of projection - negative of the normal
       camera.setDirectionOfProjection(-normal[0], -normal[1], -normal[2]);
-
       // View up is the Axial direction
       camera.setViewUp(...viewUp);
+      this.renderer.resetCamera();
 
+      // orientation widget (enable after camera reset to properly update marker orientation)
       this.orientationWidget.setEnabled(true);
-      this.orientationWidget.setViewportCorner(
-        vtkOrientationMarkerWidget.Corners.BOTTOM_RIGHT
-      );
-      this.orientationWidget.setMinPixelSize(50);
-      this.orientationWidget.setMaxPixelSize(500);
-      this.renderWindow.render();
     }
     console.timeEnd('View3DMarchingCubes componentDidUpdate');
   }
