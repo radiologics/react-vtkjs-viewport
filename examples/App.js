@@ -97,7 +97,7 @@ function Index() {
     },
   ];
 
-  const exampleComponents = examplemap(e => {
+  const exampleComponents = examples.map(e => {
     return <ExampleEntry key={e.title} {...e} />;
   });
 

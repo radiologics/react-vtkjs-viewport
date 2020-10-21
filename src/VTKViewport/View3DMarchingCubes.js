@@ -179,9 +179,21 @@ export default class View3DMarchingCubes extends Component {
       }
       // show sagittal view
       const { planeMap } = this.props;
-      const position = [0, 0, 0];
-      position[planeMap.Sagittal.plane] = planeMap.Sagittal.flip ? -1 : 1;
-      this.renderer.getActiveCamera().set({ position, viewUp: [0, 0, 1] });
+      const normal = [0, 0, 0];
+      normal[planeMap.Sagittal.plane] = planeMap.Sagittal.flip ? -1 : 1;
+
+      const viewUp = [0, 0, 0];
+
+      viewUp[planeMap.Axial.plane] = planeMap.Axial.flip ? -1 : 1;
+
+      const camera = this.renderer.getActiveCamera();
+
+      // Direction of projection - negative of the normal
+      camera.setDirectionOfProjection(-normal[0], -normal[1], -normal[2]);
+
+      // View up is the Axial direction
+      camera.setViewUp(...viewUp);
+
       this.orientationWidget.setEnabled(true);
       this.orientationWidget.setViewportCorner(
         vtkOrientationMarkerWidget.Corners.BOTTOM_RIGHT
