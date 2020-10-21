@@ -53,6 +53,7 @@ export default class View3DMarchingCubes extends Component {
       actor: this.axes,
       interactor: interactor,
     });
+    this.orientationWidget.setEnabled(true);
     this.orientationWidget.setViewportCorner(
       vtkOrientationMarkerWidget.Corners.BOTTOM_RIGHT
     );
@@ -67,30 +68,36 @@ export default class View3DMarchingCubes extends Component {
       switch (key) {
         case 'Sagittal':
           if (flip) {
-            (minusText = 'L'), (minusRotation = -90);
-            (plusText = 'R'), (plusRotation = 90);
+            minusText = 'L';
+            plusText = 'R';
           } else {
-            (minusText = 'R'), (minusRotation = -90);
-            (plusText = 'L'), (plusRotation = 90);
+            minusText = 'R';
+            plusText = 'L';
           }
+          minusRotation = -90; //+270 -> 180
+          plusRotation = 90; //+90 -> 180
           break;
         case 'Coronal':
           if (flip) {
-            (minusText = 'P'), (minusRotation = 0);
-            (plusText = 'A'), (plusRotation = 180);
+            minusText = 'P';
+            plusText = 'A';
           } else {
-            (minusText = 'A'), (minusRotation = 0);
-            (plusText = 'P'), (plusRotation = 180);
+            minusText = 'A';
+            plusText = 'P';
           }
+          minusRotation = 0; //+180 -> 180
+          plusRotation = 180;
           break;
         case 'Axial':
           if (flip) {
-            (minusText = 'S'), (minusRotation = 180);
-            (plusText = 'I'), (plusRotation = 0);
+            minusText = 'S';
+            plusText = 'I';
           } else {
-            (minusText = 'I'), (minusRotation = 180);
-            (plusText = 'S'), (plusRotation = 0);
+            minusText = 'I';
+            plusText = 'S';
           }
+          minusRotation = 180; //+180 -> 0 skip for now
+          plusRotation = 0;
           break;
       }
       let plusSetterFn, minusSetterFn;
@@ -198,8 +205,8 @@ export default class View3DMarchingCubes extends Component {
       camera.setViewUp(...viewUp);
       this.renderer.resetCamera();
 
-      // orientation widget (enable after camera reset to properly update marker orientation)
-      this.orientationWidget.setEnabled(true);
+      // orientation widget (update marker orientation after camera reset)
+      this.orientationWidget.updateMarkerOrientation();
     }
     console.timeEnd('View3DMarchingCubes componentDidUpdate');
   }
