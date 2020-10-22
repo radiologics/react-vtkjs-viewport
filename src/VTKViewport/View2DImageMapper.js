@@ -140,6 +140,7 @@ export default class View2DImageMapper extends Component {
         break;
     }
     const dimensionsOfSliceDirection = dimensions[planeMap[orientation].plane];
+    const slice = Math.floor(dimensionsOfSliceDirection / 2);
     const flipped = planeMap[orientation].flip;
 
     let viewUp;
@@ -148,6 +149,7 @@ export default class View2DImageMapper extends Component {
       case 'Sagittal':
         viewUp = [0, 0, 1];
         this.setState({
+          slice,
           neswMetadata: {
             n: 'S',
             s: 'I',
@@ -159,6 +161,7 @@ export default class View2DImageMapper extends Component {
       case 'Coronal':
         viewUp = [0, 0, 1];
         this.setState({
+          slice,
           neswMetadata: {
             n: 'S',
             s: 'I',
@@ -170,6 +173,7 @@ export default class View2DImageMapper extends Component {
       case 'Axial':
         viewUp = [0, -1, 0];
         this.setState({
+          slice,
           neswMetadata: {
             n: 'A',
             s: 'P',
@@ -186,7 +190,7 @@ export default class View2DImageMapper extends Component {
       actor.getMapper().setSlicingMode(sliceMode);
 
       // Set middle slice.
-      actor.getMapper().setSlice(Math.floor(dimensionsOfSliceDirection / 2));
+      actor.getMapper().setSlice(slice);
     });
 
     if (labelmapActors) {
@@ -196,15 +200,19 @@ export default class View2DImageMapper extends Component {
         actor.getMapper().setSlicingMode(sliceMode);
 
         // Set middle slice.
-        actor.getMapper().setSlice(Math.floor(dimensionsOfSliceDirection / 2));
+        actor.getMapper().setSlice(slice);
       });
     }
 
     // Update slices of labelmaps when source data slice changed
     imageMapper.onModified(() => {
+      const slice = imageMapper.getSlice();
+      this.setState({
+        slice,
+      });
       if (labelmapActors) {
         labelmapActors.forEach(actor => {
-          actor.getMapper().setSlice(imageMapper.getSlice());
+          actor.getMapper().setSlice(slice);
         });
       }
     });
@@ -411,6 +419,7 @@ export default class View2DImageMapper extends Component {
           voi={voi}
           orientation={this.props.orientation}
           neswMetadata={this.state.neswMetadata}
+          slice={this.state.slice}
         />
       </div>
     );

@@ -18,6 +18,7 @@ class ViewportOverlay extends PureComponent {
     orientation: PropTypes.string,
     rotation: PropTypes.object,
     neswMetadata: PropTypes.object,
+    slice: PropTypes.number,
     studyDate: PropTypes.string,
     studyTime: PropTypes.string,
     studyDescription: PropTypes.string,
@@ -53,6 +54,7 @@ class ViewportOverlay extends PureComponent {
       orientation,
       rotation,
       neswMetadata,
+      slice,
     } = this.props;
     const { windowWidth, windowCenter } = voi;
     const wwwc = `W: ${windowWidth.toFixed(0)} L: ${windowCenter.toFixed(0)}`;
@@ -61,6 +63,8 @@ class ViewportOverlay extends PureComponent {
           1
         )}`
       : null;
+
+    const sliceNumber = typeof slice === 'number' ? `Slice ${slice}` : '';
 
     return (
       <div className="ViewportOverlay">
@@ -87,6 +91,7 @@ class ViewportOverlay extends PureComponent {
           <div>{wwwc}</div>
           <div>{rotationString}</div>
           <div>{orientation}</div>
+          <div>{sliceNumber}</div>
         </div>
         <div className="bottom-center overlay-element">
           <div>{neswMetadata.s}</div>
