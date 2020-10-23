@@ -59,25 +59,25 @@ function vtkInteractorStyleCrosshairsMarchingCubes(publicAPI, model) {
     }
   };
 
-  const superHandleLeftButtonPress = publicAPI.handleLeftButtonPress;
+  publicAPI.superHandleLeftButtonPress = publicAPI.handleLeftButtonPress;
   publicAPI.handleLeftButtonPress = callData => {
     if (!callData.shiftKey && !callData.controlKey) {
       if (model.actor) {
         publicAPI.moveCrosshairs(callData);
         publicAPI.startWindowLevel();
       }
-    } else if (superHandleLeftButtonPress) {
-      superHandleLeftButtonPress(callData);
+    } else if (publicAPI.superHandleLeftButtonPress) {
+      publicAPI.superHandleLeftButtonPress(callData);
     }
   };
 
   publicAPI.handleRightButtonPress = callData => {
-    superHandleLeftButtonPress(callData);
+    publicAPI.superHandleLeftButtonPress(callData);
   };
 
-  const superHandleLeftButtonRelease = publicAPI.handleLeftButtonRelease;
+  publicAPI.superHandleLeftButtonRelease = publicAPI.handleLeftButtonRelease;
   publicAPI.handleRightButtonRelease = callData => {
-    superHandleLeftButtonRelease(callData);
+    publicAPI.superHandleLeftButtonRelease(callData);
   };
 
   publicAPI.superHandleLeftButtonRelease = publicAPI.handleLeftButtonRelease;

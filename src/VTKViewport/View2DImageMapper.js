@@ -37,6 +37,7 @@ export default class View2DImageMapper extends Component {
     this.interactorStyleSubs = [];
     this.state = {
       voi: this.getVOI(props.actors[0]),
+      freezeSlice: false,
     };
 
     this.apiProperties = {};
@@ -84,7 +85,7 @@ export default class View2DImageMapper extends Component {
     this.renderWindow.getInteractor().setInteractorStyle(iStyle);
 
     const inter = this.renderWindow.getInteractor();
-    const updateCameras = () => {
+    const updateCameras = function() {
       const baseCamera = this.renderer.getActiveCamera();
       const labelmapCamera = this.labelmapRenderer.getActiveCamera();
 
@@ -92,18 +93,23 @@ export default class View2DImageMapper extends Component {
       const focalPoint = baseCamera.getReferenceByName('focalPoint');
       const viewUp = baseCamera.getReferenceByName('viewUp');
       const viewAngle = baseCamera.getReferenceByName('viewAngle');
+      const parallelScale = baseCamera.getParallelScale();
 
       labelmapCamera.set({
         position,
         focalPoint,
         viewUp,
         viewAngle,
+        parallelScale,
       });
 
-      this.props.actors.forEach(actor => {
-        actor.getMapper().setSliceFromCamera(baseCamera);
-      });
-    };
+      if (!this.state.freezeSlice) {
+        this.props.actors.forEach(actor => {
+          actor.getMapper().setSliceFromCamera(baseCamera);
+        });
+      }
+    }.bind(this);
+
     // TODO unsubscribe from this before component unmounts.
     inter.onAnimation(updateCameras);
 
@@ -252,6 +258,7 @@ export default class View2DImageMapper extends Component {
     const boundUpdateImage = this.updateImage.bind(this);
     const boundGetSliceNormal = this.getSliceNormal.bind(this);
     const boundRequestNewSegmentation = this.requestNewSegmentation.bind(this);
+    const boundSetFreezeSlice = this.setFreezeSlice.bind(this);
 
     this.svgWidgets = {};
 
@@ -283,6 +290,7 @@ export default class View2DImageMapper extends Component {
         setCamera: boundSetCamera,
         get: boundGetApiProperty,
         set: boundSetApiProperty,
+        setFreezeSlice: boundSetFreezeSlice,
         type: 'VIEW2D',
       };
 
@@ -378,6 +386,10 @@ export default class View2DImageMapper extends Component {
     const renderWindow = this.genericRenderWindow.getRenderWindow();
     const currentIStyle = renderWindow.getInteractor().getInteractorStyle();
     return currentIStyle.getSliceNormal();
+  }
+
+  setFreezeSlice(freezeSlice) {
+    this.setState({ freezeSlice });
   }
 
   componentWillUnmount() {
