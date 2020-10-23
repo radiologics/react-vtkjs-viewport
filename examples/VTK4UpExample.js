@@ -9,7 +9,9 @@ import {
   vtkInteractorStyleCrosshairsImageMapper,
   vtkSVGCrosshairsWidgetImageMapper,
   vtkInteractorStyleCrosshairsMarchingCubes,
+  vtkInteractorStyleImagePanZoom,
 } from '@vtk-viewport';
+import vtkInteractorStyleTrackballCamera from 'vtk.js/Sources/Interaction/Style/InteractorStyleTrackballCamera';
 import vtkImageMapper from 'vtk.js/Sources/Rendering/Core/ImageMapper';
 import vtkImageSlice from 'vtk.js/Sources/Rendering/Core/ImageSlice';
 import vtkImageMarchingCubes from 'vtk.js/Sources/Filters/General/ImageMarchingCubes';
@@ -407,7 +409,7 @@ class VTK4UPExample extends Component {
         paintFilterLabelMapImageData: labelmapDataObject,
         paintFilterBackgroundImageData: mrImageDataObject.vtkImageData,
         labelmapColorLUT,
-        displayCrosshairs: true,
+        displayCrosshairs: false,
         planeMap,
       });
     };
@@ -428,8 +430,8 @@ class VTK4UPExample extends Component {
 
       const istyle =
         type === '2D'
-          ? vtkInteractorStyleCrosshairsImageMapper.newInstance()
-          : vtkInteractorStyleCrosshairsMarchingCubes.newInstance();
+          ? vtkInteractorStyleImagePanZoom.newInstance()
+          : vtkInteractorStyleTrackballCamera.newInstance();
 
       // add istyle
       api.setInteractorStyle({
@@ -437,15 +439,15 @@ class VTK4UPExample extends Component {
         configuration: { apis, apiIndex: viewportIndex },
       });
 
-      // Its up to the layout manager of an app to know how many viewports are being created.
-      if (apis.length === 4) {
-        const targetApi = apis[0];
-        const targetIstyle = targetApi.genericRenderWindow
-          .getRenderWindow()
-          .getInteractor()
-          .getInteractorStyle();
-        targetIstyle.resetCrosshairs();
-      }
+      // // Its up to the layout manager of an app to know how many viewports are being created.
+      // if (apis.length === 4) {
+      //   const targetApi = apis[0];
+      //   const targetIstyle = targetApi.genericRenderWindow
+      //     .getRenderWindow()
+      //     .getInteractor()
+      //     .getInteractorStyle();
+      //   targetIstyle.resetCrosshairs();
+      // }
     };
   };
 

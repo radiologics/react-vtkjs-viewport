@@ -71,7 +71,7 @@ function vtkInteractorStyleCrosshairsImageMapper(publicAPI, model) {
 
   const superHandleMouseMove = publicAPI.handleMouseMove;
   publicAPI.handleMouseMove = callData => {
-    if (model.state === States.IS_PAN) {
+    if (model.state === States.IS_ROTATE) {
       publicAPI.moveCrosshairs(callData);
     } else if (superHandleMouseMove) {
       superHandleMouseMove(callData);
@@ -82,7 +82,7 @@ function vtkInteractorStyleCrosshairsImageMapper(publicAPI, model) {
   publicAPI.handleLeftButtonPress = callData => {
     if (model.imageActor && !callData.shiftKey && !callData.controlKey) {
       publicAPI.moveCrosshairs(callData);
-      publicAPI.startPan();
+      publicAPI.startRotate();
     } else if (superHandleLeftButtonPress) {
       superHandleLeftButtonPress(callData);
     }
@@ -91,8 +91,8 @@ function vtkInteractorStyleCrosshairsImageMapper(publicAPI, model) {
   publicAPI.superHandleLeftButtonRelease = publicAPI.handleLeftButtonRelease;
   publicAPI.handleLeftButtonRelease = () => {
     switch (model.state) {
-      case States.IS_PAN:
-        publicAPI.endPan();
+      case States.IS_ROTATE:
+        publicAPI.endRotate();
         break;
 
       default:
