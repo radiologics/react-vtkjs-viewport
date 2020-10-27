@@ -69,22 +69,22 @@ function vtkInteractorStyleCrosshairsImageMapper(publicAPI, model) {
     publicAPI.invokeInteractionEvent({ type: 'InteractionEvent' });
   };
 
-  const superHandleMouseMove = publicAPI.handleMouseMove;
+  publicAPI.superHandleMouseMove = publicAPI.handleMouseMove;
   publicAPI.handleMouseMove = callData => {
     if (model.state === States.IS_ROTATE) {
       publicAPI.moveCrosshairs(callData);
-    } else if (superHandleMouseMove) {
-      superHandleMouseMove(callData);
+    } else if (publicAPI.superHandleMouseMove) {
+      publicAPI.superHandleMouseMove(callData);
     }
   };
 
-  const superHandleLeftButtonPress = publicAPI.handleLeftButtonPress;
+  publicAPI.superHandleLeftButtonPress = publicAPI.handleLeftButtonPress;
   publicAPI.handleLeftButtonPress = callData => {
     if (model.imageActor && !callData.shiftKey && !callData.controlKey) {
       publicAPI.moveCrosshairs(callData);
       publicAPI.startRotate();
-    } else if (superHandleLeftButtonPress) {
-      superHandleLeftButtonPress(callData);
+    } else if (publicAPI.superHandleLeftButtonPress) {
+      publicAPI.superHandleLeftButtonPress(callData);
     }
   };
 
@@ -106,6 +106,13 @@ function vtkInteractorStyleCrosshairsImageMapper(publicAPI, model) {
     publicAPI.superHandleMouseWheel(callData);
     publicAPI.updateCrosshairsAfterScroll();
   };
+
+  // do nothing on keypresses
+  publicAPI.handleKeyPress = event => {};
+
+  publicAPI.handleKeyDown = event => {};
+
+  publicAPI.handleKeyUp = event => {};
 
   publicAPI.getSliceNormal = () => {
     const renderer = model.interactor.getCurrentRenderer();

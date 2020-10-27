@@ -13,9 +13,9 @@ function vtkInteractorStyleImageWindowLevel(publicAPI, model) {
   // Set our className
   model.classHierarchy.push('vtkInteractorStyleImageWindowLevel');
 
-  const superWindowLevel = publicAPI.windowLevel;
+  publicAPI.superWindowLevel = publicAPI.windowLevel;
   publicAPI.windowLevel = (renderer, position) => {
-    superWindowLevel(renderer, position);
+    publicAPI.superWindowLevel(renderer, position);
     const windowWidth = model.currentImageProperty.getColorWindow();
     const windowCenter = model.currentImageProperty.getColorLevel();
     const onLevelsChanged = publicAPI.getOnLevelsChanged();
@@ -23,6 +23,13 @@ function vtkInteractorStyleImageWindowLevel(publicAPI, model) {
       onLevelsChanged({ windowCenter, windowWidth });
     }
   };
+
+  // do nothing on keypresses
+  publicAPI.handleKeyPress = event => {};
+
+  publicAPI.handleKeyDown = event => {};
+
+  publicAPI.handleKeyUp = event => {};
 }
 
 // ----------------------------------------------------------------------------

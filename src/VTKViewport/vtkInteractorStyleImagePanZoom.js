@@ -86,6 +86,13 @@ function vtkInteractorStyleImagePanZoom(publicAPI, model) {
     }
     camera.setDistance(distance);
   };
+
+  // do nothing on keypresses
+  publicAPI.handleKeyPress = event => {};
+
+  publicAPI.handleKeyDown = event => {};
+
+  publicAPI.handleKeyUp = event => {};
 }
 
 // ----------------------------------------------------------------------------
