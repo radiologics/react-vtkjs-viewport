@@ -416,10 +416,6 @@ export default class View2DImageMapper extends Component {
   };
 
   render() {
-    if (!this.props.actors || !this.props.actors.length) {
-      return null;
-    }
-
     const style = { width: '100%', height: '100%', position: 'relative' };
     const voi = this.state.voi;
 

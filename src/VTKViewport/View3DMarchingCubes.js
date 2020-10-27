@@ -8,9 +8,16 @@ import vtkAnnotatedCubeActor from 'vtk.js/Sources/Rendering/Core/AnnotatedCubeAc
 
 import { createSub } from '../lib/createSub.js';
 
+const stlKey = 'STL';
+const mcKey = 'MC';
+const displayName = {};
+displayName[stlKey] = 'STL surface mesh';
+displayName[mcKey] = 'DICOM-SEG marching cubes';
+
 export default class View3DMarchingCubes extends Component {
   static propTypes = {
-    actors: PropTypes.array,
+    marchingCubesActors: PropTypes.array,
+    stlActors: PropTypes.array,
     onCreated: PropTypes.func,
     onDestroyed: PropTypes.func,
     dataDetails: PropTypes.object,
@@ -28,6 +35,73 @@ export default class View3DMarchingCubes extends Component {
     };
     this.interactorStyleSubs = [];
     this.apiProperties = {};
+
+    let defaultDisplay;
+    this.actorMap = {};
+    if (this.props.stlActors.length) {
+      this.actorMap[stlKey] = this.props.stlActors;
+      defaultDisplay = stlKey;
+    }
+    if (this.props.marchingCubesActors.length) {
+      this.actorMap[mcKey] = this.props.marchingCubesActors;
+      if (!defaultDisplay) {
+        defaultDisplay = mcKey;
+      }
+    }
+
+    this.state = {
+      display: defaultDisplay,
+      loading: true,
+    };
+  }
+
+  getActorsForDisplay = display => {
+    if (!display) {
+      return [];
+    }
+    return this.actorMap[display];
+  };
+
+  setOrUpdateActors(display) {
+    if (display === this.state.display) {
+      this.setState({ loading: false });
+      return;
+    }
+
+    if (display) {
+      // We are updating, remove old actors
+      const oldActors = this.getActorsForDisplay(this.state.display);
+      if (oldActors.length) {
+        oldActors.forEach(this.renderer.removeActor);
+      }
+    } else {
+      // Initial rendering
+      display = this.state.display;
+    }
+    const actors = this.getActorsForDisplay(display);
+    if (actors.length) {
+      actors.forEach(this.renderer.addActor);
+    }
+
+    // show sagittal view
+    const { planeMap } = this.props;
+    const normal = [0, 0, 0];
+    normal[planeMap.Sagittal.plane] = planeMap.Sagittal.flip ? -1 : 1;
+    const viewUp = [0, 0, 0];
+    viewUp[planeMap.Axial.plane] = planeMap.Axial.flip ? -1 : 1;
+
+    // Set camera
+    const camera = this.renderer.getActiveCamera();
+    // Direction of projection - negative of the normal
+    camera.setDirectionOfProjection(-normal[0], -normal[1], -normal[2]);
+    // View up is the Axial direction
+    camera.setViewUp(...viewUp);
+    this.renderer.resetCamera();
+
+    // orientation widget (update marker orientation after camera reset)
+    this.orientationWidget.updateMarkerOrientation();
+    this.genericRenderWindow.getRenderWindow().render();
+    this.setState({ loading: false, display });
   }
 
   componentDidMount() {
@@ -36,8 +110,6 @@ export default class View3DMarchingCubes extends Component {
     });
 
     this.genericRenderWindow.setContainer(this.container.current);
-
-    let actors = [];
 
     this.renderer = this.genericRenderWindow.getRenderer();
     this.renderWindow = this.genericRenderWindow.getRenderWindow();
@@ -128,12 +200,7 @@ export default class View3DMarchingCubes extends Component {
     window.addEventListener('resize', this.genericRenderWindow.resize);
     window.addEventListener('resize', this.orientationWidget.updateViewport);
 
-    // trigger pipeline update
-    this.componentDidUpdate({});
-
-    if (this.props.actors) {
-      actors = actors.concat(this.props.actors);
-    }
+    this.setOrUpdateActors();
 
     this.renderer.resetCamera();
     this.renderer.updateLightsGeometryToFollowCamera();
@@ -168,7 +235,8 @@ export default class View3DMarchingCubes extends Component {
         addSVGWidget: boundAddSVGWidget,
         setInteractorStyle: boundSetInteractorStyle,
         container: this.container.current,
-        actors,
+        marchingCubesActors: this.props.marchingCubesActors,
+        stlActors: this.props.stlActors,
         svgWidgets: this.svgWidgets,
         get: boundGetApiProperty,
         set: boundSetApiProperty,
@@ -178,36 +246,6 @@ export default class View3DMarchingCubes extends Component {
 
       this.props.onCreated(api);
     }
-  }
-
-  componentDidUpdate(prevProps) {
-    console.time('View3DMarchingCubes componentDidUpdate');
-    if (prevProps.actors !== this.props.actors) {
-      if (this.props.actors.length) {
-        this.props.actors.forEach(this.renderer.addActor);
-      } else {
-        // TODO: Remove all actors
-      }
-
-      // show sagittal view
-      const { planeMap } = this.props;
-      const normal = [0, 0, 0];
-      normal[planeMap.Sagittal.plane] = planeMap.Sagittal.flip ? -1 : 1;
-      const viewUp = [0, 0, 0];
-      viewUp[planeMap.Axial.plane] = planeMap.Axial.flip ? -1 : 1;
-
-      // Set camera
-      const camera = this.renderer.getActiveCamera();
-      // Direction of projection - negative of the normal
-      camera.setDirectionOfProjection(-normal[0], -normal[1], -normal[2]);
-      // View up is the Axial direction
-      camera.setViewUp(...viewUp);
-      this.renderer.resetCamera();
-
-      // orientation widget (update marker orientation after camera reset)
-      this.orientationWidget.updateMarkerOrientation();
-    }
-    console.timeEnd('View3DMarchingCubes componentDidUpdate');
   }
 
   componentWillUnmount() {
@@ -232,7 +270,7 @@ export default class View3DMarchingCubes extends Component {
   }
 
   setInteractorStyle({ istyle, callbacks = {}, configuration = {} }) {
-    const { actors } = this.props;
+    const actors = this.getActorsForDisplay(this.state.display);
     const renderWindow = this.genericRenderWindow.getRenderWindow();
     const currentIStyle = renderWindow.getInteractor().getInteractorStyle();
 
@@ -289,15 +327,42 @@ export default class View3DMarchingCubes extends Component {
   }
 
   render() {
-    if (!this.props.actors) {
-      return null;
-    }
-
     const style = { width: '100%', height: '100%', position: 'relative' };
+    const selectContainer = { top: '10px', left: '10px', position: 'absolute' };
+
+    let select = null;
+    if (this.state.display) {
+      select = (
+        <select
+          onChange={e => {
+            const actorType = e.target.value;
+            this.setState({ loading: true }, () =>
+              setTimeout(() => this.setOrUpdateActors(actorType), 50)
+            );
+          }}
+          defaultValue={this.state.display}
+        >
+          {Object.keys(this.actorMap).map(key => {
+            return (
+              <option key={key} value={key}>
+                {displayName[key]}
+              </option>
+            );
+          })}
+        </select>
+      );
+    }
 
     return (
       <div style={style}>
         <div ref={this.container} style={style} />
+        <div style={selectContainer}>
+          {this.state.loading ? (
+            <div style={{ color: 'white' }}>Loading...</div>
+          ) : (
+            select
+          )}
+        </div>
       </div>
     );
   }
