@@ -8,7 +8,6 @@ import {
   loadImageData,
   vtkInteractorStyleCrosshairsImageMapper,
   vtkSVGCrosshairsWidgetImageMapper,
-  vtkInteractorStyleCrosshairsMarchingCubes,
   vtkInteractorStyleImagePanZoom,
 } from '@vtk-viewport';
 import vtkInteractorStyleTrackballCamera from 'vtk.js/Sources/Interaction/Style/InteractorStyleTrackballCamera';
@@ -639,10 +638,12 @@ class VTK4UPExample extends Component {
       apis[viewportIndex] = api;
 
       // Add svg widget
-      api.addSVGWidget(
-        vtkSVGCrosshairsWidgetImageMapper.newInstance(),
-        'crosshairsWidget'
-      );
+      if (api.type !== 'VIEW3D') {
+        api.addSVGWidget(
+          vtkSVGCrosshairsWidgetImageMapper.newInstance(),
+          'crosshairsWidget'
+        );
+      }
 
       const istyle =
         type === '2D'
@@ -654,16 +655,6 @@ class VTK4UPExample extends Component {
         istyle,
         configuration: { apis, apiIndex: viewportIndex },
       });
-
-      // // Its up to the layout manager of an app to know how many viewports are being created.
-      // if (apis.length === 4) {
-      //   const targetApi = apis[0];
-      //   const targetIstyle = targetApi.genericRenderWindow
-      //     .getRenderWindow()
-      //     .getInteractor()
-      //     .getInteractorStyle();
-      //   targetIstyle.resetCrosshairs();
-      // }
     };
   };
 
@@ -673,14 +664,32 @@ class VTK4UPExample extends Component {
 
     const shouldDisplayCrosshairs = !displayCrosshairs;
 
-    apis.forEach(api => {
+    apis.forEach((api, index) => {
       const { svgWidgetManager, svgWidgets } = api;
-      if (!svgWidgets || !svgWidgets.crosshairsWidget) {
+      if (
+        !svgWidgets ||
+        !svgWidgets.crosshairsWidget ||
+        api.type === 'VIEW3D'
+      ) {
         return;
       }
+
+      // add istyle
+      const istyle = vtkInteractorStyleCrosshairsImageMapper.newInstance();
+      api.setInteractorStyle({
+        istyle,
+        configuration: { apis, apiIndex: index },
+      });
       svgWidgets.crosshairsWidget.setDisplay(shouldDisplayCrosshairs);
       svgWidgetManager.render();
     });
+
+    const targetApi = apis[0];
+    const targetIstyle = targetApi.genericRenderWindow
+      .getRenderWindow()
+      .getInteractor()
+      .getInteractorStyle();
+    targetIstyle.resetCrosshairs();
 
     this.setState({ displayCrosshairs: shouldDisplayCrosshairs });
   };
@@ -749,18 +758,11 @@ class VTK4UPExample extends Component {
               orientation={'Axial'}
             />
           </div>
-          {/** 3D  View
+          {/** 3D  View */}
           <div className="col-sm-4">
             <View3DMarchingCubes
-              actors={this.state.marchingCubesActors}
-              planeMap={this.state.planeMap}
-              onCreated={this.storeApi(3, '3D')}
-            />
-          </div>
-          */}
-          <div className="col-sm-4">
-            <View3DMarchingCubes
-              actors={this.state.stlActors}
+              marchingCubesActors={this.state.marchingCubesActors}
+              stlActors={this.state.stlActors}
               planeMap={this.state.planeMap}
               onCreated={this.storeApi(3, '3D')}
             />
