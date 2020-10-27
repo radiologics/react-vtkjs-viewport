@@ -17,6 +17,7 @@ import vtkImageSlice from 'vtk.js/Sources/Rendering/Core/ImageSlice';
 import vtkMapper from 'vtk.js/Sources/Rendering/Core/Mapper';
 import vtkActor from 'vtk.js/Sources/Rendering/Core/Actor';
 import vtkImageMarchingCubes from 'vtk.js/Sources/Filters/General/ImageMarchingCubes';
+import vtkSTLReader from 'vtk.js/Sources/IO/Geometry/STLReader';
 import vtkImageData from 'vtk.js/Sources/Common/DataModel/ImageData';
 import vtkDataArray from 'vtk.js/Sources/Common/Core/DataArray';
 import cornerstoneTools from 'cornerstone-tools';
@@ -27,6 +28,11 @@ import vtkImageOutlineFilter from 'vtk.js/Sources/Filters/General/ImageOutlineFi
 const segmentationModule = cornerstoneTools.getModule('segmentation');
 
 const segURL = `${window.location.origin}/seg/RoiCollection_Combined.dcm`;
+
+const stlUrls = [
+  `${window.location.origin}/surfaces/Mandible_Surface.stl`,
+  `${window.location.origin}/surfaces/Maxilla_Surface.stl`,
+];
 
 const ROOT_URL =
   window.location.hostname === 'localhost'
@@ -580,26 +586,46 @@ class VTK4UPExample extends Component {
         labelmapFillActors.push(labelmapFillActor);
       }
 
-      this.setState({
-        imageActors: {
-          I: imageActors[0],
-          J: imageActors[1],
-          K: imageActors[2],
-        },
-        labelmapActors: {
-          I: labelmapActors[0],
-          IFill: labelmapFillActors[0],
-          J: labelmapActors[1],
-          JFill: labelmapFillActors[1],
-          K: labelmapActors[2],
-          KFill: labelmapFillActors[2],
-        },
-        marchingCubesActors: segActors,
-        paintFilterLabelMapImageData: labelmapDataObject,
-        paintFilterBackgroundImageData: imageDataObject.vtkImageData,
-        labelmapColorLUT,
-        displayCrosshairs: false,
-        planeMap,
+      const readStl = async (url, i) => {
+        const reader = vtkSTLReader.newInstance();
+        const mapper = vtkMapper.newInstance({ scalarVisibility: false });
+        const actor = vtkActor.newInstance();
+
+        actor.setMapper(mapper);
+        mapper.setInputConnection(reader.getOutputPort());
+        let color = [];
+        labelmapTransferFunctions.cfun.getColor(i + 1, color); // colors are 1-indexed
+        actor.getProperty().setColor(...color);
+
+        await reader.setUrl(url, { binary: true });
+
+        return actor;
+      };
+
+      const stlActorPromises = stlUrls.map(readStl);
+      Promise.all(stlActorPromises).then(stlActors => {
+        this.setState({
+          imageActors: {
+            I: imageActors[0],
+            J: imageActors[1],
+            K: imageActors[2],
+          },
+          labelmapActors: {
+            I: labelmapActors[0],
+            IFill: labelmapFillActors[0],
+            J: labelmapActors[1],
+            JFill: labelmapFillActors[1],
+            K: labelmapActors[2],
+            KFill: labelmapFillActors[2],
+          },
+          stlActors,
+          marchingCubesActors: segActors,
+          paintFilterLabelMapImageData: labelmapDataObject,
+          paintFilterBackgroundImageData: imageDataObject.vtkImageData,
+          labelmapColorLUT,
+          displayCrosshairs: false,
+          planeMap,
+        });
       });
     };
 
@@ -723,10 +749,18 @@ class VTK4UPExample extends Component {
               orientation={'Axial'}
             />
           </div>
-          {/** 3D  View*/}
+          {/** 3D  View
           <div className="col-sm-4">
             <View3DMarchingCubes
               actors={this.state.marchingCubesActors}
+              planeMap={this.state.planeMap}
+              onCreated={this.storeApi(3, '3D')}
+            />
+          </div>
+          */}
+          <div className="col-sm-4">
+            <View3DMarchingCubes
+              actors={this.state.stlActors}
               planeMap={this.state.planeMap}
               onCreated={this.storeApi(3, '3D')}
             />

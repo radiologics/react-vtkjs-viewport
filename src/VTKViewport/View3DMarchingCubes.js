@@ -11,7 +11,6 @@ import { createSub } from '../lib/createSub.js';
 export default class View3DMarchingCubes extends Component {
   static propTypes = {
     actors: PropTypes.array,
-    sourceDataDirection: PropTypes.object,
     onCreated: PropTypes.func,
     onDestroyed: PropTypes.func,
     dataDetails: PropTypes.object,
