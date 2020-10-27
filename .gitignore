@@ -17,6 +17,7 @@ build
 dicoms
 public/background
 public/seg
+public/surfaces
 
 npm-debug.log*
 yarn-debug.log*
