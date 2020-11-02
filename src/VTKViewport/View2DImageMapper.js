@@ -13,7 +13,7 @@ import { uuidv4 } from './../helpers';
 export default class View2DImageMapper extends Component {
   static propTypes = {
     actors: PropTypes.array,
-    labelmapActors: PropTypes.array,
+    labelmapActors: PropTypes.object,
     dataDetails: PropTypes.object,
     onCreated: PropTypes.func,
     onDestroyed: PropTypes.func,
@@ -56,8 +56,21 @@ export default class View2DImageMapper extends Component {
 
     let widgets = [];
     let filters = [];
-    let actors = this.props.actors;
-    let labelmapActors = this.props.labelmapActors;
+    const { orientation, planeMap, actors } = this.props;
+
+    let sliceMode;
+    switch (planeMap[orientation].plane) {
+      case 0:
+        sliceMode = vtkImageMapper.SlicingMode.I;
+        break;
+      case 1:
+        sliceMode = vtkImageMapper.SlicingMode.J;
+        break;
+      case 2:
+        sliceMode = vtkImageMapper.SlicingMode.K;
+        break;
+    }
+    const labelmapActorsArray = this.props.labelmapActors[sliceMode] || [];
 
     const renderer = this.genericRenderWindow.getRenderer();
 
@@ -121,8 +134,8 @@ export default class View2DImageMapper extends Component {
       renderer.addViewProp(actor);
     });
 
-    if (labelmapActors) {
-      labelmapActors.forEach(actor => {
+    if (labelmapActorsArray) {
+      labelmapActorsArray.forEach(actor => {
         labelmapRenderer.addViewProp(actor);
       });
     }
@@ -132,19 +145,6 @@ export default class View2DImageMapper extends Component {
     const actorVTKImageData = imageMapper.getInputData();
     const dimensions = actorVTKImageData.getDimensions();
 
-    const { orientation, planeMap } = this.props;
-    let sliceMode;
-    switch (planeMap[orientation].plane) {
-      case 0:
-        sliceMode = vtkImageMapper.SlicingMode.I;
-        break;
-      case 1:
-        sliceMode = vtkImageMapper.SlicingMode.J;
-        break;
-      case 2:
-        sliceMode = vtkImageMapper.SlicingMode.K;
-        break;
-    }
     const dimensionsOfSliceDirection = dimensions[planeMap[orientation].plane];
     const slice = Math.floor(dimensionsOfSliceDirection / 2);
     const flipped = planeMap[orientation].flip;
@@ -199,9 +199,9 @@ export default class View2DImageMapper extends Component {
       actor.getMapper().setSlice(slice);
     });
 
-    if (labelmapActors) {
+    if (labelmapActorsArray) {
       // Set labelmaps
-      labelmapActors.forEach(actor => {
+      labelmapActorsArray.forEach(actor => {
         // Set slice orientation/mode and camera view
         actor.getMapper().setSlicingMode(sliceMode);
 
@@ -216,8 +216,8 @@ export default class View2DImageMapper extends Component {
       this.setState({
         slice,
       });
-      if (labelmapActors) {
-        labelmapActors.forEach(actor => {
+      if (labelmapActorsArray) {
+        labelmapActorsArray.forEach(actor => {
           actor.getMapper().setSlice(slice);
         });
       }
