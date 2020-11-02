@@ -364,6 +364,13 @@ export default class View2DImageMapper extends Component {
   }
 
   updateVOI(windowWidth, windowCenter) {
+    const actors = this.props.actors;
+    const renderWindow = this.genericRenderWindow.getRenderWindow();
+    actors.forEach(actor => {
+      actor.getProperty().setColorWindow(windowWidth);
+      actor.getProperty().setColorLevel(windowCenter);
+    });
+    renderWindow.render();
     this.setState({ voi: { windowWidth, windowCenter } });
   }
 
