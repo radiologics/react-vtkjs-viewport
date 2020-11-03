@@ -39,157 +39,10 @@ export default class View2DImageMapper extends Component {
       voi: this.getVOI(props.actors[0]),
       freezeSlice: false,
     };
-
     this.apiProperties = {};
   }
 
-  componentDidMount() {
-    // Tracking ID to tie emitted events to this component
-    const uid = uuidv4();
-
-    this.genericRenderWindow = vtkGenericRenderWindow.newInstance({
-      background: [0, 0, 0],
-    });
-
-    this.genericRenderWindow.setContainer(this.container.current);
-    this.renderWindow = this.genericRenderWindow.getRenderWindow();
-
-    let widgets = [];
-    let filters = [];
-    const { orientation, planeMap, actors } = this.props;
-
-    let sliceMode;
-    switch (planeMap[orientation].plane) {
-      case 0:
-        sliceMode = vtkImageMapper.SlicingMode.I;
-        break;
-      case 1:
-        sliceMode = vtkImageMapper.SlicingMode.J;
-        break;
-      case 2:
-        sliceMode = vtkImageMapper.SlicingMode.K;
-        break;
-    }
-    const labelmapActorsArray = this.props.labelmapActors[sliceMode] || [];
-
-    const renderer = this.genericRenderWindow.getRenderer();
-
-    this.renderer = renderer;
-    this.renderWindow = this.genericRenderWindow.getRenderWindow();
-    const oglrw = this.genericRenderWindow.getOpenGLRenderWindow();
-
-    // Add labelmap only renderer so we can interact with source data
-    this.labelmapRenderer = vtkRenderer.newInstance();
-
-    const labelmapRenderer = this.labelmapRenderer;
-
-    this.renderWindow.addRenderer(this.labelmapRenderer);
-    this.renderWindow.setNumberOfLayers(2);
-    labelmapRenderer.setLayer(1);
-    labelmapRenderer.setInteractive(false);
-
-    // update view node tree so that vtkOpenGLHardwareSelector can access
-    // the vtkOpenGLRenderer instance.
-    oglrw.buildPass(true);
-
-    const iStyle = vtkInteractorStyleImage.newInstance();
-
-    iStyle.setInteractionMode('IMAGE_SLICING');
-    this.renderWindow.getInteractor().setInteractorStyle(iStyle);
-
-    const inter = this.renderWindow.getInteractor();
-    const updateCameras = function() {
-      const baseCamera = this.renderer.getActiveCamera();
-      const labelmapCamera = this.labelmapRenderer.getActiveCamera();
-
-      const position = baseCamera.getReferenceByName('position');
-      const focalPoint = baseCamera.getReferenceByName('focalPoint');
-      const viewUp = baseCamera.getReferenceByName('viewUp');
-      const viewAngle = baseCamera.getReferenceByName('viewAngle');
-      const parallelScale = baseCamera.getParallelScale();
-
-      labelmapCamera.set({
-        position,
-        focalPoint,
-        viewUp,
-        viewAngle,
-        parallelScale,
-      });
-
-      if (!this.state.freezeSlice) {
-        this.props.actors.forEach(actor => {
-          actor.getMapper().setSliceFromCamera(baseCamera);
-        });
-      }
-    }.bind(this);
-
-    // TODO unsubscribe from this before component unmounts.
-    inter.onAnimation(updateCameras);
-
-    this.widgetManager.disablePicking();
-    this.widgetManager.setRenderer(this.labelmapRenderer);
-
-    // Add all actors to renderer
-    actors.forEach(actor => {
-      renderer.addViewProp(actor);
-    });
-
-    if (labelmapActorsArray) {
-      labelmapActorsArray.forEach(actor => {
-        labelmapRenderer.addViewProp(actor);
-      });
-    }
-
-    const imageActor = actors[0];
-    const imageMapper = imageActor.getMapper();
-    const actorVTKImageData = imageMapper.getInputData();
-    const dimensions = actorVTKImageData.getDimensions();
-
-    const dimensionsOfSliceDirection = dimensions[planeMap[orientation].plane];
-    const slice = Math.floor(dimensionsOfSliceDirection / 2);
-    const flipped = planeMap[orientation].flip;
-
-    let viewUp;
-    // Use orientation to set viewUp and N/S/E/W overlay
-    switch (orientation) {
-      case 'Sagittal':
-        viewUp = [0, 0, 1];
-        this.setState({
-          slice,
-          neswMetadata: {
-            n: 'S',
-            s: 'I',
-            e: 'P',
-            w: 'A',
-          },
-        });
-        break;
-      case 'Coronal':
-        viewUp = [0, 0, 1];
-        this.setState({
-          slice,
-          neswMetadata: {
-            n: 'S',
-            s: 'I',
-            e: 'R',
-            w: 'L',
-          },
-        });
-        break;
-      case 'Axial':
-        viewUp = [0, -1, 0];
-        this.setState({
-          slice,
-          neswMetadata: {
-            n: 'A',
-            s: 'P',
-            e: 'R',
-            w: 'L',
-          },
-        });
-        break;
-    }
-
+  setupActors(actors, labelmapActorsArray, imageMapper, slice, sliceMode) {
     // Set source data
     actors.forEach(actor => {
       // Set slice orientation/mode and camera view
@@ -222,6 +75,150 @@ export default class View2DImageMapper extends Component {
         });
       }
     });
+  }
+
+  componentDidMount() {
+    // Tracking ID to tie emitted events to this component
+    const uid = uuidv4();
+
+    this.genericRenderWindow = vtkGenericRenderWindow.newInstance({
+      background: [0, 0, 0],
+    });
+
+    this.genericRenderWindow.setContainer(this.container.current);
+    this.renderWindow = this.genericRenderWindow.getRenderWindow();
+
+    let widgets = [];
+    let filters = [];
+    const { orientation, planeMap, actors } = this.props;
+
+    let sliceMode;
+    switch (planeMap[orientation].plane) {
+      case 0:
+        sliceMode = vtkImageMapper.SlicingMode.I;
+        break;
+      case 1:
+        sliceMode = vtkImageMapper.SlicingMode.J;
+        break;
+      case 2:
+        sliceMode = vtkImageMapper.SlicingMode.K;
+        break;
+    }
+    const labelmapActorsArray = this.props.labelmapActors[sliceMode] || [];
+
+    const renderer = this.genericRenderWindow.getRenderer();
+    this.renderer = renderer;
+    this.renderWindow = this.genericRenderWindow.getRenderWindow();
+    const oglrw = this.genericRenderWindow.getOpenGLRenderWindow();
+
+    // Add labelmap only renderer so we can interact with source data
+    this.labelmapRenderer = vtkRenderer.newInstance();
+    const labelmapRenderer = this.labelmapRenderer;
+    this.renderWindow.addRenderer(labelmapRenderer);
+    this.renderWindow.setNumberOfLayers(2);
+    labelmapRenderer.setLayer(1);
+    labelmapRenderer.setInteractive(false);
+
+    // update view node tree so that vtkOpenGLHardwareSelector can access
+    // the vtkOpenGLRenderer instance.
+    oglrw.buildPass(true);
+
+    const iStyle = vtkInteractorStyleImage.newInstance();
+    iStyle.setInteractionMode('IMAGE_SLICING');
+    this.renderWindow.getInteractor().setInteractorStyle(iStyle);
+
+    const inter = this.renderWindow.getInteractor();
+    this.updateCameras = function() {
+      const baseCamera = this.renderer.getActiveCamera();
+      const labelmapCamera = this.labelmapRenderer.getActiveCamera();
+
+      const position = baseCamera.getReferenceByName('position');
+      const focalPoint = baseCamera.getReferenceByName('focalPoint');
+      const viewUp = baseCamera.getReferenceByName('viewUp');
+      const viewAngle = baseCamera.getReferenceByName('viewAngle');
+      const parallelScale = baseCamera.getParallelScale();
+
+      labelmapCamera.set({
+        position,
+        focalPoint,
+        viewUp,
+        viewAngle,
+        parallelScale,
+      });
+
+      if (!this.state.freezeSlice) {
+        this.props.actors.forEach(actor => {
+          actor.getMapper().setSliceFromCamera(baseCamera);
+        });
+      }
+    }.bind(this);
+
+    // TODO unsubscribe from this before component unmounts.
+    inter.onAnimation(this.updateCameras);
+
+    this.widgetManager.disablePicking();
+    this.widgetManager.setRenderer(labelmapRenderer);
+
+    // Add all actors to renderer
+    actors.forEach(renderer.addActor);
+    if (labelmapActorsArray) {
+      labelmapActorsArray.forEach(labelmapRenderer.addActor);
+    }
+
+    const imageActor = actors[0];
+    const imageMapper = imageActor.getMapper();
+    const actorVTKImageData = imageMapper.getInputData();
+    const dimensions = actorVTKImageData.getDimensions();
+
+    const dimensionsOfSliceDirection = dimensions[planeMap[orientation].plane];
+    const slice = Math.floor(dimensionsOfSliceDirection / 2);
+    const flipped = planeMap[orientation].flip;
+
+    let viewUp, neswMetadata;
+    // Use orientation to set viewUp and N/S/E/W overlay
+    switch (orientation) {
+      case 'Sagittal':
+        viewUp = [0, 0, 1];
+        neswMetadata = {
+          n: 'S',
+          s: 'I',
+          e: 'P',
+          w: 'A',
+        };
+        break;
+      case 'Coronal':
+        viewUp = [0, 0, 1];
+        neswMetadata = {
+          n: 'S',
+          s: 'I',
+          e: 'R',
+          w: 'L',
+        };
+        break;
+      case 'Axial':
+        viewUp = [0, -1, 0];
+        neswMetadata = {
+          n: 'A',
+          s: 'P',
+          e: 'R',
+          w: 'L',
+        };
+        break;
+    }
+
+    this.setupActors(
+      actors,
+      labelmapActorsArray,
+      imageMapper,
+      slice,
+      sliceMode
+    );
+
+    this.setState({
+      slice,
+      neswMetadata,
+      sliceMode,
+    });
 
     // Set up camera
     const camera = this.renderer.getActiveCamera();
@@ -240,11 +237,11 @@ export default class View2DImageMapper extends Component {
     this.svgWidgetManager = svgWidgetManager;
 
     // TODO: Not sure why this is necessary to force the initial draw
-    this.renderer.resetCamera();
-    this.labelmapRenderer.resetCamera();
+    renderer.resetCamera();
+    labelmapRenderer.resetCamera();
     this.genericRenderWindow.resize();
 
-    updateCameras();
+    this.updateCameras();
 
     this.renderWindow.render();
 
@@ -258,6 +255,7 @@ export default class View2DImageMapper extends Component {
     const boundUpdateImage = this.updateImage.bind(this);
     const boundGetSliceNormal = this.getSliceNormal.bind(this);
     const boundRequestNewSegmentation = this.requestNewSegmentation.bind(this);
+    const boundUpdateColorLUT = this.updateColorLUT.bind(this);
     const boundSetFreezeSlice = this.setFreezeSlice.bind(this);
 
     this.svgWidgets = {};
@@ -287,6 +285,7 @@ export default class View2DImageMapper extends Component {
         setInteractorStyle: boundSetInteractorStyle,
         getSliceNormal: boundGetSliceNormal,
         requestNewSegmentation: boundRequestNewSegmentation,
+        updateColorLUT: boundUpdateColorLUT,
         setCamera: boundSetCamera,
         get: boundGetApiProperty,
         set: boundSetApiProperty,
@@ -295,6 +294,47 @@ export default class View2DImageMapper extends Component {
       };
 
       this.props.onCreated(api);
+    }
+  }
+
+  componentDidUpdate(prevProps) {
+    const { slice, sliceMode } = this.state;
+    const { actors, labelmapActors } = this.props;
+    let updated = false;
+    if (actors !== prevProps.actors) {
+      const renderer = this.renderer;
+      prevProps.actors.forEach(renderer.removeActor);
+      actors.forEach(renderer.addActor);
+      updated = true;
+    }
+    const imageMapper = actors[0].getMapper();
+    const labelmapActorsArrayOld = prevProps.labelmapActors[sliceMode] || [];
+    const labelmapActorsArray = labelmapActors[sliceMode] || [];
+    if (
+      labelmapActorsArrayOld !== labelmapActorsArray &&
+      (labelmapActorsArray.length > 0 || labelmapActorsArrayOld > 0)
+    ) {
+      const labelmapRenderer = this.labelmapRenderer;
+      if (labelmapActorsArrayOld) {
+        labelmapActorsArrayOld.forEach(labelmapRenderer.removeActor);
+      }
+      labelmapActorsArray.forEach(labelmapRenderer.addActor);
+      updated = true;
+    }
+
+    if (updated) {
+      this.setupActors(
+        actors,
+        labelmapActorsArray,
+        imageMapper,
+        slice,
+        sliceMode
+      );
+      this.renderer.resetCamera();
+      this.labelmapRenderer.resetCamera();
+      this.genericRenderWindow.resize();
+      this.updateCameras();
+      this.updateImage();
     }
   }
 
@@ -322,6 +362,10 @@ export default class View2DImageMapper extends Component {
 
   requestNewSegmentation() {
     this.props.labelmapRenderingOptions.onNewSegmentationRequested();
+  }
+
+  updateColorLUT() {
+    this.props.labelmapRenderingOptions.onColorLUTUpdate();
   }
 
   setInteractorStyle({ istyle, callbacks = {}, configuration = {} }) {

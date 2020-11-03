@@ -22,6 +22,7 @@ export default class View3DMarchingCubes extends Component {
     onDestroyed: PropTypes.func,
     dataDetails: PropTypes.object,
     planeMap: PropTypes.object,
+    labelmapRenderingOptions: PropTypes.object,
   };
 
   constructor(props) {
@@ -219,6 +220,9 @@ export default class View3DMarchingCubes extends Component {
     const boundSetInteractorStyle = this.setInteractorStyle.bind(this);
     const boundGetApiProperty = this.getApiProperty.bind(this);
     const boundSetApiProperty = this.setApiProperty.bind(this);
+    const boundRequestNewSegmentation = this.requestNewSegmentation.bind(this);
+    const boundUpdateColorLUT = this.updateColorLUT.bind(this);
+    const boundUpdateImage = this.updateImage.bind(this);
 
     this.svgWidgets = {};
 
@@ -240,11 +244,42 @@ export default class View3DMarchingCubes extends Component {
         svgWidgets: this.svgWidgets,
         get: boundGetApiProperty,
         set: boundSetApiProperty,
+        requestNewSegmentation: boundRequestNewSegmentation,
+        updateImage: boundUpdateImage,
+        updateColorLUT: boundUpdateColorLUT,
         type: 'VIEW3D',
         _component: this, // Backdoor still open for now whilst the API isn't as mature as View2D.
       };
 
       this.props.onCreated(api);
+    }
+  }
+
+  componentDidUpdate(prevProps) {
+    if (
+      (prevProps.stlActors !== this.props.stlActors &&
+        (prevProps.stlActors.length > 0 || this.props.stlActors.length > 0)) ||
+      (prevProps.marchingCubesActors !== this.props.marchingCubesActors &&
+        (prevProps.marchingCubesActors.length > 0 ||
+          this.props.marchingCubesActors.length > 0))
+    ) {
+      let defaultDisplay;
+      this.actorMap = {};
+      if (this.props.stlActors.length) {
+        this.actorMap[stlKey] = this.props.stlActors;
+        defaultDisplay = stlKey;
+      }
+      if (this.props.marchingCubesActors.length) {
+        this.actorMap[mcKey] = this.props.marchingCubesActors;
+        if (!defaultDisplay) {
+          defaultDisplay = mcKey;
+        }
+      }
+      this.setState({ loading: true, display: defaultDisplay }, () => {
+        this.setOrUpdateActors();
+        this.renderer.resetCamera();
+        this.renderer.updateLightsGeometryToFollowCamera();
+      });
     }
   }
 
@@ -324,6 +359,19 @@ export default class View3DMarchingCubes extends Component {
 
   setApiProperty(propertyName, value) {
     this.apiProperties[propertyName] = value;
+  }
+
+  requestNewSegmentation() {
+    this.props.labelmapRenderingOptions.onNewSegmentationRequested();
+  }
+
+  updateColorLUT() {
+    this.props.labelmapRenderingOptions.onColorLUTUpdate();
+  }
+
+  updateImage() {
+    const renderWindow = this.genericRenderWindow.getRenderWindow();
+    renderWindow.render();
   }
 
   render() {
