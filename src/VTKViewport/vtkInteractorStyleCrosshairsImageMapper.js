@@ -69,26 +69,26 @@ function vtkInteractorStyleCrosshairsImageMapper(publicAPI, model) {
     publicAPI.invokeInteractionEvent({ type: 'InteractionEvent' });
   };
 
-  publicAPI.superHandleMouseMove = publicAPI.handleMouseMove;
+  const superHandleMouseMove = publicAPI.handleMouseMove;
   publicAPI.handleMouseMove = callData => {
     if (model.state === States.IS_ROTATE) {
       publicAPI.moveCrosshairs(callData);
-    } else if (publicAPI.superHandleMouseMove) {
-      publicAPI.superHandleMouseMove(callData);
+    } else if (superHandleMouseMove) {
+      superHandleMouseMove(callData);
     }
   };
 
-  publicAPI.superHandleLeftButtonPress = publicAPI.handleLeftButtonPress;
+  const superHandleLeftButtonPress = publicAPI.handleLeftButtonPress;
   publicAPI.handleLeftButtonPress = callData => {
     if (model.imageActor && !callData.shiftKey && !callData.controlKey) {
       publicAPI.moveCrosshairs(callData);
       publicAPI.startRotate();
-    } else if (publicAPI.superHandleLeftButtonPress) {
-      publicAPI.superHandleLeftButtonPress(callData);
+    } else if (superHandleLeftButtonPress) {
+      superHandleLeftButtonPress(callData);
     }
   };
 
-  publicAPI.superHandleLeftButtonRelease = publicAPI.handleLeftButtonRelease;
+  const superHandleLeftButtonRelease = publicAPI.handleLeftButtonRelease;
   publicAPI.handleLeftButtonRelease = () => {
     switch (model.state) {
       case States.IS_ROTATE:
@@ -96,14 +96,14 @@ function vtkInteractorStyleCrosshairsImageMapper(publicAPI, model) {
         break;
 
       default:
-        publicAPI.superHandleLeftButtonRelease();
+        superHandleLeftButtonRelease();
         break;
     }
   };
 
-  publicAPI.superHandleMouseWheel = publicAPI.handleMouseWheel;
+  const superHandleMouseWheel = publicAPI.handleMouseWheel;
   publicAPI.handleMouseWheel = callData => {
-    publicAPI.superHandleMouseWheel(callData);
+    superHandleMouseWheel(callData);
     publicAPI.updateCrosshairsAfterScroll();
   };
 
