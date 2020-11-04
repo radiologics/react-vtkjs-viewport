@@ -166,6 +166,9 @@ export default class View2DImageMapper extends Component {
     }
 
     const imageActor = actors[0];
+    imageActor.onModified(() => {
+      this.updateImage();
+    });
     const imageMapper = imageActor.getMapper();
     const actorVTKImageData = imageMapper.getInputData();
     const dimensions = actorVTKImageData.getDimensions();
