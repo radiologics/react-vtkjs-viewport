@@ -258,7 +258,9 @@ export default class View2DImageMapper extends Component {
     const boundUpdateImage = this.updateImage.bind(this);
     const boundGetSliceNormal = this.getSliceNormal.bind(this);
     const boundRequestNewSegmentation = this.requestNewSegmentation.bind(this);
-    const boundUpdateColorLUT = this.updateColorLUT.bind(this);
+    const boundUpdateSegmentationConfig = this.updateSegmentationConfig.bind(
+      this
+    );
     const boundSetFreezeSlice = this.setFreezeSlice.bind(this);
 
     this.svgWidgets = {};
@@ -288,7 +290,7 @@ export default class View2DImageMapper extends Component {
         setInteractorStyle: boundSetInteractorStyle,
         getSliceNormal: boundGetSliceNormal,
         requestNewSegmentation: boundRequestNewSegmentation,
-        updateColorLUT: boundUpdateColorLUT,
+        updateSegmentationConfig: boundUpdateSegmentationConfig,
         setCamera: boundSetCamera,
         get: boundGetApiProperty,
         set: boundSetApiProperty,
@@ -367,8 +369,8 @@ export default class View2DImageMapper extends Component {
     this.props.labelmapRenderingOptions.onNewSegmentationRequested();
   }
 
-  updateColorLUT() {
-    this.props.labelmapRenderingOptions.onColorLUTUpdate();
+  updateSegmentationConfig() {
+    this.props.labelmapRenderingOptions.onUpdateSegmentationConfig();
   }
 
   setInteractorStyle({ istyle, callbacks = {}, configuration = {} }) {
