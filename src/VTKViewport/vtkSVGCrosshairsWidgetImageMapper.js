@@ -136,17 +136,11 @@ function vtkSVGCrosshairsWidgetImageMapper(publicAPI, model) {
 
       //TODO make this callback
       if (api.type === 'VIEW2D') {
-        if (viewportIndex == apiIndex) {
-          const istyle = renderWindow.getInteractor().getInteractorStyle();
-          const camera = renderer.getActiveCamera();
-          camera.setFocalPoint(...istyle.getSliceCenter());
-        } else {
+        if (viewportIndex !== apiIndex) {
           const imageMapper = api.actors[0].getMapper();
           const slice = imageMapper.getSliceAtPosition(worldPos);
           imageMapper.setSlice(slice);
         }
-      } else {
-        //TODO
       }
 
       renderWindow.render();
