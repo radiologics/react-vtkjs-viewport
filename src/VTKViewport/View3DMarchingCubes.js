@@ -37,19 +37,7 @@ export default class View3DMarchingCubes extends Component {
     this.interactorStyleSubs = [];
     this.apiProperties = {};
 
-    let defaultDisplay;
-    this.actorMap = {};
-    if (this.props.stlActors.length) {
-      this.actorMap[stlKey] = this.props.stlActors;
-      defaultDisplay = stlKey;
-    }
-    if (this.props.marchingCubesActors.length) {
-      this.actorMap[mcKey] = this.props.marchingCubesActors;
-      if (!defaultDisplay) {
-        defaultDisplay = mcKey;
-      }
-    }
-
+    const defaultDisplay = this.setActorMapAndDisplay();
     this.state = {
       display: defaultDisplay,
       loading: true,
@@ -103,6 +91,25 @@ export default class View3DMarchingCubes extends Component {
     this.orientationWidget.updateMarkerOrientation();
     this.genericRenderWindow.getRenderWindow().render();
     this.setState({ loading: false, display });
+  }
+
+  setActorMapAndDisplay() {
+    this.actorMap = {};
+    let defaultDisplay;
+    if (this.props.stlActors && this.props.stlActors.length) {
+      this.actorMap[stlKey] = this.props.stlActors;
+      defaultDisplay = stlKey;
+    }
+    if (
+      this.props.marchingCubesActors &&
+      this.props.marchingCubesActors.length
+    ) {
+      this.actorMap[mcKey] = this.props.marchingCubesActors;
+      if (!defaultDisplay) {
+        defaultDisplay = mcKey;
+      }
+    }
+    return defaultDisplay;
   }
 
   componentDidMount() {
@@ -258,23 +265,15 @@ export default class View3DMarchingCubes extends Component {
   componentDidUpdate(prevProps) {
     if (
       (prevProps.stlActors !== this.props.stlActors &&
-        (prevProps.stlActors.length > 0 || this.props.stlActors.length > 0)) ||
+        ((prevProps.stlActors && prevProps.stlActors.length > 0) ||
+          (this.props.stlActors && this.props.stlActors.length > 0))) ||
       (prevProps.marchingCubesActors !== this.props.marchingCubesActors &&
-        (prevProps.marchingCubesActors.length > 0 ||
-          this.props.marchingCubesActors.length > 0))
+        ((prevProps.marchingCubesActors &&
+          prevProps.marchingCubesActors.length > 0) ||
+          (this.props.marchingCubesActors &&
+            this.props.marchingCubesActors.length > 0)))
     ) {
-      let defaultDisplay;
-      this.actorMap = {};
-      if (this.props.stlActors.length) {
-        this.actorMap[stlKey] = this.props.stlActors;
-        defaultDisplay = stlKey;
-      }
-      if (this.props.marchingCubesActors.length) {
-        this.actorMap[mcKey] = this.props.marchingCubesActors;
-        if (!defaultDisplay) {
-          defaultDisplay = mcKey;
-        }
-      }
+      const defaultDisplay = this.setActorMapAndDisplay();
       this.setState({ loading: true, display: defaultDisplay }, () => {
         this.setOrUpdateActors();
         this.renderer.resetCamera();
