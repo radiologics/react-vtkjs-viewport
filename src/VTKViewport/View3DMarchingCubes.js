@@ -228,7 +228,9 @@ export default class View3DMarchingCubes extends Component {
     const boundGetApiProperty = this.getApiProperty.bind(this);
     const boundSetApiProperty = this.setApiProperty.bind(this);
     const boundRequestNewSegmentation = this.requestNewSegmentation.bind(this);
-    const boundUpdateColorLUT = this.updateColorLUT.bind(this);
+    const boundUpdateSegmentationConfig = this.updateSegmentationConfig.bind(
+      this
+    );
     const boundUpdateImage = this.updateImage.bind(this);
 
     this.svgWidgets = {};
@@ -253,7 +255,7 @@ export default class View3DMarchingCubes extends Component {
         set: boundSetApiProperty,
         requestNewSegmentation: boundRequestNewSegmentation,
         updateImage: boundUpdateImage,
-        updateColorLUT: boundUpdateColorLUT,
+        updateSegmentationConfig: boundUpdateSegmentationConfig,
         type: 'VIEW3D',
         _component: this, // Backdoor still open for now whilst the API isn't as mature as View2D.
       };
@@ -364,8 +366,8 @@ export default class View3DMarchingCubes extends Component {
     this.props.labelmapRenderingOptions.onNewSegmentationRequested();
   }
 
-  updateColorLUT() {
-    this.props.labelmapRenderingOptions.onColorLUTUpdate();
+  updateSegmentationConfig() {
+    this.props.labelmapRenderingOptions.onUpdateSegmentationConfig();
   }
 
   updateImage() {
