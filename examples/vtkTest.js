@@ -9,7 +9,8 @@ import vtkImageMapper from 'vtk.js/Sources/Rendering/Core/ImageMapper'
 import vtkActor from 'vtk.js/Sources/Rendering/Core/Actor'
 import vtkMapper from 'vtk.js/Sources/Rendering/Core/Mapper'
 import vtkImageMarchingCubes from 'vtk.js/Sources/Filters/General/ImageMarchingCubes'
-import vtkITKHelper from 'vtk.js/Sources/Common/DataModel/ITKHelper'
+import vtkSphere from 'vtk.js/Sources/Common/DataModel/Sphere'
+import vtkSampleFunction from 'vtk.js/Sources/Imaging/Hybrid/SampleFunction'
 
 cornerstoneWADOImageLoader.external.cornerstone = cornerstone
 cornerstoneWADOImageLoader.external.dicomParser = dicomParser
@@ -30,6 +31,7 @@ class Test extends Component {
   async componentDidMount(){
     var scans = []
 
+    console.log('Loading DICOM images...')
     for (let i = 0; i < 87; i++){
       let url = `wadouri:${window.location.href}/../dicoms/${i}.dcm`
       scans.push(cornerstone.loadImage(url))
@@ -37,12 +39,16 @@ class Test extends Component {
     scans = await Promise.all(scans)
 
     var scanPixelData = []
-    for (let i = 0; i < scans.length; i ++){
+    console.log(scans[0].getPixelData())
+    scans[0].getPixelData().map(x => scanPixelData.push(x))
+    scans[1].getPixelData().map(x => scanPixelData.push(x))
+    scanPixelData = new Uint16Array(scanPixelData)
+    /*for (let i = 0; i < 2; i ++){
       let image = scans[i]
       let pixelData = image.getPixelData()
       pixelData = pixelData.map(p => {return ((p - image.minPixelValue) / image.maxPixelValue) * 255})
-      scanPixelData.push(pixelData)
-    }
+      scanPixelData += pixelData
+    }*/
 
     /*var files = []
     for (let i = 0; i < 87; i++){
@@ -69,19 +75,31 @@ class Test extends Component {
         values: scanPixelData
       })
 
+      imageData.setDimensions([256, 256, 2])
       imageData.getPointData().setScalars(dataArray)
-      //imageData.setDimensions([256, 256, scanPixelData.length])
 
+      const sphere = vtkSphere.newInstance({ center: [0.0, 0.0, 0.0], radius: 0.5})
+      const sample = vtkSampleFunction.newInstance({
+        implicitFunction: sphere,
+        sampleDimensions: [50, 50, 50],
+        modelBounds: [-0.5, 0.5, -0.5, 0.5, -0.5, 0.5]
+      })
+
+      console.log(dataArray.getData())
       console.log(imageData.getPointData().getScalars().getData())
+      console.log(sample.getOutputData().getPointData().getScalars().getData())
+      console.log(imageData)
 
-      const marchingCubes = vtkImageMarchingCubes.newInstance({ contourValue: 255 / 3, computeNormals: true, mergePoints: true })
+      const marchingCubes = vtkImageMarchingCubes.newInstance({ contourValue: 0, computeNormals: false, mergePoints: false })
       const actor = vtkActor.newInstance()
       const imageMapper = vtkMapper.newInstance()
 
+      console.log('Running Marching Cubes...')
       marchingCubes.setInputData(imageData)
       actor.setMapper(imageMapper)
       imageMapper.setInputConnection(marchingCubes.getOutputPort())
 
+      console.log('Rendering...')
       renderer.addActor(actor)
       renderer.resetCamera()
       renderWindow.render()
