@@ -23,6 +23,7 @@ export default class View3DMarchingCubes extends Component {
     dataDetails: PropTypes.object,
     planeMap: PropTypes.object,
     labelmapRenderingOptions: PropTypes.object,
+    onUpdateSTLConfig: PropTypes.func,
   };
 
   constructor(props) {
@@ -231,6 +232,7 @@ export default class View3DMarchingCubes extends Component {
     const boundUpdateSegmentationConfig = this.updateSegmentationConfig.bind(
       this
     );
+    const boundUpdateSTLConfig = this.updateSTLConfig.bind(this);
     const boundUpdateImage = this.updateImage.bind(this);
 
     this.svgWidgets = {};
@@ -256,6 +258,7 @@ export default class View3DMarchingCubes extends Component {
         requestNewSegmentation: boundRequestNewSegmentation,
         updateImage: boundUpdateImage,
         updateSegmentationConfig: boundUpdateSegmentationConfig,
+        updateSTLConfig: boundUpdateSTLConfig,
         type: 'VIEW3D',
         _component: this, // Backdoor still open for now whilst the API isn't as mature as View2D.
       };
@@ -368,6 +371,10 @@ export default class View3DMarchingCubes extends Component {
 
   updateSegmentationConfig() {
     this.props.labelmapRenderingOptions.onUpdateSegmentationConfig();
+  }
+
+  updateSTLConfig() {
+    this.props.onUpdateSTLConfig();
   }
 
   updateImage() {

@@ -9,10 +9,18 @@ import vtkSVGWidgetManager from './vtkSVGWidgetManager';
 import ViewportOverlay from '../ViewportOverlay/ViewportOverlay.js';
 import { createSub } from '../lib/createSub.js';
 import { uuidv4 } from './../helpers';
+import vtkCutter from 'vtk.js/Sources/Filters/Core/Cutter';
+import vtkPlane from 'vtk.js/Sources/Common/DataModel/Plane';
+import vtkProperty from 'vtk.js/Sources/Rendering/Core/Property';
+import vtkMapper from 'vtk.js/Sources/Rendering/Core/Mapper';
+import vtkActor from 'vtk.js/Sources/Rendering/Core/Actor';
+import vtkBoundingBox from 'vtk.js/Sources/Common/DataModel/BoundingBox';
 
 export default class View2DImageMapper extends Component {
   static propTypes = {
     actors: PropTypes.array,
+    stlPolyData: PropTypes.array,
+    colors: PropTypes.array,
     labelmapActors: PropTypes.object,
     dataDetails: PropTypes.object,
     onCreated: PropTypes.func,
@@ -21,6 +29,7 @@ export default class View2DImageMapper extends Component {
     orientationName: PropTypes.string,
     labelmapRenderingOptions: PropTypes.object,
     planeMap: PropTypes.object,
+    onUpdateSTLConfig: PropTypes.func,
   };
 
   constructor(props) {
@@ -40,6 +49,16 @@ export default class View2DImageMapper extends Component {
       freezeSlice: false,
     };
     this.apiProperties = {};
+    this.resetCutActorsCache();
+  }
+
+  resetCutActorsCache() {
+    this.cutActorsCache = {};
+    [
+      vtkImageMapper.SlicingMode.I,
+      vtkImageMapper.SlicingMode.J,
+      vtkImageMapper.SlicingMode.K,
+    ].forEach(mode => (this.cutActorsCache[mode] = {}));
   }
 
   setupActors(actors, labelmapActorsArray, imageMapper, slice, sliceMode) {
@@ -52,16 +71,16 @@ export default class View2DImageMapper extends Component {
       actor.getMapper().setSlice(slice);
     });
 
-    if (labelmapActorsArray) {
-      // Set labelmaps
-      labelmapActorsArray.forEach(actor => {
-        // Set slice orientation/mode and camera view
-        actor.getMapper().setSlicingMode(sliceMode);
+    // if (labelmapActorsArray) {
+    //   // Set labelmaps
+    //   labelmapActorsArray.forEach(actor => {
+    //     // Set slice orientation/mode and camera view
+    //     actor.getMapper().setSlicingMode(sliceMode);
 
-        // Set middle slice.
-        actor.getMapper().setSlice(slice);
-      });
-    }
+    //     // Set middle slice.
+    //     actor.getMapper().setSlice(slice);
+    //   });
+    // }
 
     // Update slices of labelmaps when source data slice changed
     imageMapper.onModified(() => {
@@ -69,12 +88,65 @@ export default class View2DImageMapper extends Component {
       this.setState({
         slice,
       });
-      if (labelmapActorsArray) {
-        labelmapActorsArray.forEach(actor => {
-          actor.getMapper().setSlice(slice);
-        });
-      }
+      // if (labelmapActorsArray) {
+      //   labelmapActorsArray.forEach(actor => {
+      //     actor.getMapper().setSlice(slice);
+      //   });
+      // }
     });
+  }
+
+  replaceCutActors() {
+    if (this.cutActors && this.cutActors.length > 0) {
+      this.cutActors.forEach(this.renderer.removeActor);
+    }
+
+    this.cutActors = [];
+    if (this.props.stlPolyData) {
+      const { sliceMode } = this.state;
+      const sliceCenter = vtkBoundingBox.getCenter(
+        this.props.actors[0].getMapper().getBoundsForSlice()
+      );
+      if (this.cutActorsCache[sliceMode][sliceCenter]) {
+        this.cutActors = this.cutActorsCache[sliceMode][sliceCenter];
+      } else {
+        let normal = [1, 0, 0];
+        switch (sliceMode) {
+          case vtkImageMapper.SlicingMode.I:
+            normal = [1, 0, 0];
+            break;
+          case vtkImageMapper.SlicingMode.J:
+            normal = [0, 1, 0];
+            break;
+          case vtkImageMapper.SlicingMode.K:
+            normal = [0, 0, 1];
+            break;
+        }
+
+        this.props.stlPolyData.forEach((polyData, i) => {
+          const plane = vtkPlane.newInstance();
+          plane.setOrigin(sliceCenter);
+          plane.setNormal(...normal);
+          const cutter = vtkCutter.newInstance();
+          cutter.setCutFunction(plane);
+          cutter.setInputData(polyData);
+          const cutMapper = vtkMapper.newInstance();
+          cutMapper.setInputConnection(cutter.getOutputPort());
+          const cutActor = vtkActor.newInstance();
+          cutActor.setMapper(cutMapper);
+          const cutProperty = cutActor.getProperty();
+          cutProperty.setRepresentation(vtkProperty.Representation.SURFACE);
+          cutProperty.setLighting(false);
+          cutProperty.setColor(...this.props.colors[i].map(c => c / 255));
+          cutProperty.setOpacity(this.props.colors[i][3] / 255);
+          this.cutActors.push(cutActor);
+        });
+        this.cutActorsCache[sliceMode][sliceCenter] = [...this.cutActors];
+      }
+
+      this.cutActors.forEach(this.renderer.addActor);
+      this.updateImage();
+    }
   }
 
   componentDidMount() {
@@ -104,7 +176,9 @@ export default class View2DImageMapper extends Component {
         sliceMode = vtkImageMapper.SlicingMode.K;
         break;
     }
-    const labelmapActorsArray = this.props.labelmapActors[sliceMode] || [];
+    const labelmapActorsArray = this.props.labelmapActors
+      ? this.props.labelmapActors[sliceMode]
+      : [];
 
     const renderer = this.genericRenderWindow.getRenderer();
     this.renderer = renderer;
@@ -112,12 +186,12 @@ export default class View2DImageMapper extends Component {
     const oglrw = this.genericRenderWindow.getOpenGLRenderWindow();
 
     // Add labelmap only renderer so we can interact with source data
-    this.labelmapRenderer = vtkRenderer.newInstance();
-    const labelmapRenderer = this.labelmapRenderer;
-    this.renderWindow.addRenderer(labelmapRenderer);
-    this.renderWindow.setNumberOfLayers(2);
-    labelmapRenderer.setLayer(1);
-    labelmapRenderer.setInteractive(false);
+    // this.labelmapRenderer = vtkRenderer.newInstance();
+    // const labelmapRenderer = this.labelmapRenderer;
+    // this.renderWindow.addRenderer(labelmapRenderer);
+    // this.renderWindow.setNumberOfLayers(2);
+    // labelmapRenderer.setLayer(1);
+    // labelmapRenderer.setInteractive(false);
 
     // update view node tree so that vtkOpenGLHardwareSelector can access
     // the vtkOpenGLRenderer instance.
@@ -130,26 +204,27 @@ export default class View2DImageMapper extends Component {
     const inter = this.renderWindow.getInteractor();
     this.updateCameras = function() {
       const baseCamera = this.renderer.getActiveCamera();
-      const labelmapCamera = this.labelmapRenderer.getActiveCamera();
+      // const labelmapCamera = this.labelmapRenderer.getActiveCamera();
 
-      const position = baseCamera.getReferenceByName('position');
-      const focalPoint = baseCamera.getReferenceByName('focalPoint');
-      const viewUp = baseCamera.getReferenceByName('viewUp');
-      const viewAngle = baseCamera.getReferenceByName('viewAngle');
-      const parallelScale = baseCamera.getParallelScale();
+      // const position = baseCamera.getReferenceByName('position');
+      // const focalPoint = baseCamera.getReferenceByName('focalPoint');
+      // const viewUp = baseCamera.getReferenceByName('viewUp');
+      // const viewAngle = baseCamera.getReferenceByName('viewAngle');
+      // const parallelScale = baseCamera.getParallelScale();
 
-      labelmapCamera.set({
-        position,
-        focalPoint,
-        viewUp,
-        viewAngle,
-        parallelScale,
-      });
+      // labelmapCamera.set({
+      //   position,
+      //   focalPoint,
+      //   viewUp,
+      //   viewAngle,
+      //   parallelScale,
+      // });
 
       if (!this.state.freezeSlice) {
         this.props.actors.forEach(actor => {
           actor.getMapper().setSliceFromCamera(baseCamera);
         });
+        this.replaceCutActors();
       }
     }.bind(this);
 
@@ -157,12 +232,16 @@ export default class View2DImageMapper extends Component {
     inter.onAnimation(this.updateCameras);
 
     this.widgetManager.disablePicking();
-    this.widgetManager.setRenderer(labelmapRenderer);
+    this.widgetManager.setRenderer(renderer);
+    const svgWidgetManager = vtkSVGWidgetManager.newInstance();
+    svgWidgetManager.setRenderer(this.renderer);
+    svgWidgetManager.setScale(1);
+    this.svgWidgetManager = svgWidgetManager;
 
     // Add all actors to renderer
     actors.forEach(renderer.addActor);
     if (labelmapActorsArray) {
-      labelmapActorsArray.forEach(labelmapRenderer.addActor);
+      labelmapActorsArray.forEach(renderer.addActor);
     }
 
     const imageActor = actors[0];
@@ -209,6 +288,15 @@ export default class View2DImageMapper extends Component {
         break;
     }
 
+    // Set up camera
+    const camera = this.renderer.getActiveCamera();
+
+    camera.setParallelProjection(true);
+    //labelmapRenderer.getActiveCamera().setParallelProjection(true);
+
+    // set 2D camera position
+    this.setCamera(sliceMode, flipped, viewUp, renderer, actorVTKImageData);
+
     this.setupActors(
       actors,
       labelmapActorsArray,
@@ -223,29 +311,13 @@ export default class View2DImageMapper extends Component {
       sliceMode,
     });
 
-    // Set up camera
-    const camera = this.renderer.getActiveCamera();
-
-    camera.setParallelProjection(true);
-    labelmapRenderer.getActiveCamera().setParallelProjection(true);
-
-    // set 2D camera position
-    this.setCamera(sliceMode, flipped, viewUp, renderer, actorVTKImageData);
-
-    const svgWidgetManager = vtkSVGWidgetManager.newInstance();
-
-    svgWidgetManager.setRenderer(this.renderer);
-    svgWidgetManager.setScale(1);
-
-    this.svgWidgetManager = svgWidgetManager;
-
     // TODO: Not sure why this is necessary to force the initial draw
     renderer.resetCamera();
-    labelmapRenderer.resetCamera();
-    this.genericRenderWindow.resize();
+    //labelmapRenderer.resetCamera();
 
     this.updateCameras();
 
+    this.genericRenderWindow.resize();
     this.renderWindow.render();
 
     const boundUpdateVOI = this.updateVOI.bind(this);
@@ -261,6 +333,7 @@ export default class View2DImageMapper extends Component {
     const boundUpdateSegmentationConfig = this.updateSegmentationConfig.bind(
       this
     );
+    const boundUpdateSTLConfig = this.updateSTLConfig.bind(this);
     const boundSetFreezeSlice = this.setFreezeSlice.bind(this);
 
     this.svgWidgets = {};
@@ -291,6 +364,7 @@ export default class View2DImageMapper extends Component {
         getSliceNormal: boundGetSliceNormal,
         requestNewSegmentation: boundRequestNewSegmentation,
         updateSegmentationConfig: boundUpdateSegmentationConfig,
+        updateSTLConfig: boundUpdateSTLConfig,
         setCamera: boundSetCamera,
         get: boundGetApiProperty,
         set: boundSetApiProperty,
@@ -304,27 +378,38 @@ export default class View2DImageMapper extends Component {
 
   componentDidUpdate(prevProps) {
     const { slice, sliceMode } = this.state;
-    const { actors, labelmapActors } = this.props;
+    const { actors, labelmapActors, stlPolyData, colors } = this.props;
     let updated = false;
+    const renderer = this.renderer;
     if (actors !== prevProps.actors) {
-      const renderer = this.renderer;
       prevProps.actors.forEach(renderer.removeActor);
       actors.forEach(renderer.addActor);
       updated = true;
     }
     const imageMapper = actors[0].getMapper();
-    const labelmapActorsArrayOld = prevProps.labelmapActors[sliceMode] || [];
-    const labelmapActorsArray = labelmapActors[sliceMode] || [];
+    const labelmapActorsArrayOld = prevProps.labelmapActors
+      ? prevProps.labelmapActors[sliceMode]
+      : [];
+    const labelmapActorsArray = labelmapActors ? labelmapActors[sliceMode] : [];
     if (
       labelmapActorsArrayOld !== labelmapActorsArray &&
-      (labelmapActorsArray.length > 0 || labelmapActorsArrayOld > 0)
+      (labelmapActorsArray.length > 0 || labelmapActorsArrayOld.length > 0)
     ) {
-      const labelmapRenderer = this.labelmapRenderer;
       if (labelmapActorsArrayOld) {
-        labelmapActorsArrayOld.forEach(labelmapRenderer.removeActor);
+        labelmapActorsArrayOld.forEach(renderer.removeActor);
       }
-      labelmapActorsArray.forEach(labelmapRenderer.addActor);
+      labelmapActorsArray.forEach(renderer.addActor);
       updated = true;
+    }
+    if (
+      stlPolyData !== prevProps.stlPolyData &&
+      (stlPolyData.length > 0 || prevProps.stlPolyData.length > 0)
+    ) {
+      updated = true;
+    }
+    if (colors !== prevProps.colors) {
+      this.resetCutActorsCache();
+      this.replaceCutActors();
     }
 
     if (updated) {
@@ -335,8 +420,8 @@ export default class View2DImageMapper extends Component {
         slice,
         sliceMode
       );
-      this.renderer.resetCamera();
-      this.labelmapRenderer.resetCamera();
+      renderer.resetCamera();
+      //this.labelmapRenderer.resetCamera();
       this.genericRenderWindow.resize();
       this.updateCameras();
       this.updateImage();
@@ -371,6 +456,10 @@ export default class View2DImageMapper extends Component {
 
   updateSegmentationConfig() {
     this.props.labelmapRenderingOptions.onUpdateSegmentationConfig();
+  }
+
+  updateSTLConfig() {
+    this.props.onUpdateSTLConfig();
   }
 
   setInteractorStyle({ istyle, callbacks = {}, configuration = {} }) {

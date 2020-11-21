@@ -3,6 +3,7 @@ import { Component } from 'react';
 import dcmjs from 'dcmjs';
 import {
   View2DImageMapper,
+  View2DGeometry,
   View3DMarchingCubes,
   getImageData,
   loadImageData,
@@ -482,6 +483,7 @@ class VTK4UPExample extends Component {
       );
 
       // volume
+      const colors = [];
       let segActors = [];
       for (let i = 0; i < segMetadata.data.length; i++) {
         let md = segMetadata.data[i];
@@ -524,6 +526,7 @@ class VTK4UPExample extends Component {
         let color = [];
         labelmapTransferFunctions.cfun.getColor(i, color);
         segActor.getProperty().setColor(...color);
+        colors.push(color);
         segActor.setMapper(segMapper);
         segMapper.setInputConnection(marchingCube.getOutputPort());
 
@@ -589,17 +592,20 @@ class VTK4UPExample extends Component {
 
         actor.setMapper(mapper);
         mapper.setInputConnection(reader.getOutputPort());
-        let color = [];
-        labelmapTransferFunctions.cfun.getColor(i + 1, color); // colors are 1-indexed
-        actor.getProperty().setColor(...color);
+        actor.getProperty().setColor(...colors[i]);
 
         await reader.setUrl(url, { binary: true });
-
-        return actor;
+        return { polyData: reader.getOutputData(), actor };
       };
 
       const stlActorPromises = stlUrls.map(readStl);
-      Promise.all(stlActorPromises).then(stlActors => {
+      Promise.all(stlActorPromises).then(results => {
+        const stlActors = [];
+        const stlPolyData = [];
+        results.forEach(obj => {
+          stlActors.push(obj.actor);
+          stlPolyData.push(obj.polyData);
+        });
         this.setState({
           imageActors: {
             I: imageActors[0],
@@ -607,6 +613,8 @@ class VTK4UPExample extends Component {
             K: imageActors[2],
           },
           labelmapActors,
+          stlPolyData,
+          colors,
           stlActors,
           marchingCubesActors: segActors,
           paintFilterLabelMapImageData: labelmapDataObject,
@@ -687,7 +695,7 @@ class VTK4UPExample extends Component {
   render() {
     if (
       !this.state.imageActors ||
-      !this.state.labelmapActors ||
+      (!this.state.labelmapActors && !this.state.stlPolyData) ||
       !this.state.marchingCubesActors ||
       !this.state.marchingCubesActors.length
     ) {
@@ -713,7 +721,8 @@ class VTK4UPExample extends Component {
           <div className="col-sm-4">
             <View2DImageMapper
               actors={[this.state.imageActors.I]}
-              labelmapActors={this.state.labelmapActors}
+              stlPolyData={this.state.stlPolyData}
+              colors={this.state.colors}
               planeMap={this.state.planeMap}
               onCreated={this.storeApi(0, '2D')}
               orientation={'Sagittal'}
@@ -722,7 +731,8 @@ class VTK4UPExample extends Component {
           <div className="col-sm-4">
             <View2DImageMapper
               actors={[this.state.imageActors.J]}
-              labelmapActors={this.state.labelmapActors}
+              stlPolyData={this.state.stlPolyData}
+              colors={this.state.colors}
               planeMap={this.state.planeMap}
               onCreated={this.storeApi(1, '2D')}
               orientation={'Coronal'}
@@ -733,7 +743,8 @@ class VTK4UPExample extends Component {
           <div className="col-sm-4">
             <View2DImageMapper
               actors={[this.state.imageActors.K]}
-              labelmapActors={this.state.labelmapActors}
+              stlPolyData={this.state.stlPolyData}
+              colors={this.state.colors}
               planeMap={this.state.planeMap}
               onCreated={this.storeApi(2, '2D')}
               orientation={'Axial'}
