@@ -72,6 +72,8 @@ export default class View2DImageMapper extends Component {
       actor.getMapper().setSlice(slice);
     });
 
+    this.replaceCutActors();
+
     // if (labelmapActorsArray) {
     //   // Set labelmaps
     //   labelmapActorsArray.forEach(actor => {
@@ -89,6 +91,7 @@ export default class View2DImageMapper extends Component {
       this.setState({
         slice,
       });
+      this.replaceCutActors();
       // if (labelmapActorsArray) {
       //   labelmapActorsArray.forEach(actor => {
       //     actor.getMapper().setSlice(slice);
@@ -230,7 +233,6 @@ export default class View2DImageMapper extends Component {
         this.props.actors.forEach(actor => {
           actor.getMapper().setSliceFromCamera(baseCamera);
         });
-        this.replaceCutActors();
       }
     }.bind(this);
 
