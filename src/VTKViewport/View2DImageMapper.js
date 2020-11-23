@@ -15,6 +15,7 @@ import vtkProperty from 'vtk.js/Sources/Rendering/Core/Property';
 import vtkMapper from 'vtk.js/Sources/Rendering/Core/Mapper';
 import vtkActor from 'vtk.js/Sources/Rendering/Core/Actor';
 import vtkBoundingBox from 'vtk.js/Sources/Common/DataModel/BoundingBox';
+import vtkTubeFilter from 'vtk.js/Sources/Filters/General/TubeFilter';
 
 export default class View2DImageMapper extends Component {
   static propTypes = {
@@ -130,8 +131,13 @@ export default class View2DImageMapper extends Component {
           const cutter = vtkCutter.newInstance();
           cutter.setCutFunction(plane);
           cutter.setInputData(polyData);
+          const tubeFilter = vtkTubeFilter.newInstance();
+          tubeFilter.setInputConnection(cutter.getOutputPort());
+          tubeFilter.setCapping(false);
+          tubeFilter.setNumberOfSides(50);
+          tubeFilter.setRadius(1);
           const cutMapper = vtkMapper.newInstance();
-          cutMapper.setInputConnection(cutter.getOutputPort());
+          cutMapper.setInputConnection(tubeFilter.getOutputPort());
           const cutActor = vtkActor.newInstance();
           cutActor.setMapper(cutMapper);
           const cutProperty = cutActor.getProperty();
