@@ -36,15 +36,15 @@ function vtkInteractorStyleImageWindowLevel(publicAPI, model) {
 // Object factory
 // ----------------------------------------------------------------------------
 
-const DEFAULT_VALUES = {};
+const DEFAULT_VALUES = { currentImageNumber: 0 };
 
 // ----------------------------------------------------------------------------
 
 export function extend(publicAPI, model, initialValues = {}) {
-  Object.assign(model, DEFAULT_VALUES, initialValues);
-
   // Inheritance
   vtkInteractorStyleImage.extend(publicAPI, model, initialValues);
+
+  Object.assign(model, DEFAULT_VALUES, initialValues);
 
   macro.setGet(publicAPI, model, ['onLevelsChanged', 'levelScale']);
 
