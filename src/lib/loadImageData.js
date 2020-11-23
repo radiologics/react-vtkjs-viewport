@@ -118,7 +118,7 @@ function prefetchImageIds(
   insertPixelData,
   insertPixelDataErrorHandler
 ) {
-  imageIds.forEach(imageId => {
+  const loadImage = function(imageId) {
     requestPoolManager.addRequest(
       {},
       imageId,
@@ -127,7 +127,16 @@ function prefetchImageIds(
       insertPixelData,
       insertPixelDataErrorHandler
     );
-  });
+  };
+
+  // load from middle frame outward
+  let n = imageIds.length;
+  let i = Math.ceil(n / 2);
+  let j = i - 1;
+  while (j >= 0) {
+    loadImage(imageIds[j--]);
+    if (i < n) loadImage(imageIds[i++]);
+  }
 
   requestPoolManager.startGrabbing();
 }
