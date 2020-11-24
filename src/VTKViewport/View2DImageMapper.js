@@ -53,7 +53,7 @@ export default class View2DImageMapper extends Component {
     this.state = {
       voi: this.getVOI(props.actor),
       freezeSlice: false,
-      radius: radius || 1,
+      radius: radius || 0.5,
       nsides: nsides || 3,
     };
     this.apiProperties = {};
@@ -340,6 +340,7 @@ export default class View2DImageMapper extends Component {
     );
     const boundUpdateSTLConfig = this.updateSTLConfig.bind(this);
     const boundUpdateSTLParams = this.updateSTLParams.bind(this);
+    const boundSetInterpolationType = this.setInterpolationType.bind(this);
     const boundSetFreezeSlice = this.setFreezeSlice.bind(this);
 
     this.svgWidgets = {};
@@ -372,6 +373,7 @@ export default class View2DImageMapper extends Component {
         updateSegmentationConfig: boundUpdateSegmentationConfig,
         updateSTLConfig: boundUpdateSTLConfig,
         updateSTLParams: boundUpdateSTLParams,
+        setInterpolationType: boundSetInterpolationType,
         setCamera: boundSetCamera,
         get: boundGetApiProperty,
         set: boundSetApiProperty,
@@ -481,6 +483,11 @@ export default class View2DImageMapper extends Component {
         this.replaceCutActors();
       }
     );
+  }
+
+  setInterpolationType(val) {
+    this.props.actor.getProperty().setInterpolationType(val);
+    this.updateImage();
   }
 
   setInteractorStyle({ istyle, callbacks = {}, configuration = {} }) {
