@@ -1,5 +1,6 @@
 import macro from 'vtk.js/Sources/macro';
 import vtkCoordinate from 'vtk.js/Sources/Rendering/Core/Coordinate';
+import * as vtkMath from 'vtk.js/Sources/Common/Core/Math';
 
 let instanceId = 1;
 
@@ -105,11 +106,16 @@ function vtkSVGCrosshairsWidgetImageMapper(publicAPI, model) {
     }
   };
 
-  publicAPI.moveCrosshairs = (worldPos, apis, apiIndex) => {
+  publicAPI.moveCrosshairs = (worldPos, apis, apiIndex, useOldPosition) => {
     if (worldPos === undefined || apis === undefined) {
       console.error(
         'worldPos, apis must be defined in order to update crosshairs.'
       );
+    }
+
+    if (useOldPosition) {
+      const oldPos = apis[apiIndex].get('cachedCrosshairWorldPosition');
+      worldPos = oldPos ? oldPos : worldPos;
     }
 
     apis.forEach((api, viewportIndex) => {
@@ -137,9 +143,21 @@ function vtkSVGCrosshairsWidgetImageMapper(publicAPI, model) {
       //TODO make this callback
       if (api.type === 'VIEW2D') {
         if (viewportIndex !== apiIndex) {
+          // set slice by crosshairs world position and update camera FP
+          // accordingly, accounting for offset from panning
+          const istyle = renderWindow.getInteractor().getInteractorStyle();
+          const camera = renderer.getActiveCamera();
           const imageMapper = api.actors[0].getMapper();
+          const prevFp = camera.getFocalPoint();
+          const prevCenter = istyle.getSliceCenter();
+          const offset = [];
+          vtkMath.subtract(prevFp, prevCenter, offset);
           const slice = imageMapper.getSliceAtPosition(worldPos);
           imageMapper.setSlice(slice);
+          const newCenter = istyle.getSliceCenter();
+          const newFp = [];
+          vtkMath.add(newCenter, offset, newFp);
+          camera.setFocalPoint(...newFp);
         }
       }
 

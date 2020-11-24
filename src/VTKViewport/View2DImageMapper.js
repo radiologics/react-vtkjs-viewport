@@ -107,12 +107,12 @@ export default class View2DImageMapper extends Component {
 
     this.cutActors = [];
     if (this.props.stlPolyData) {
-      const { sliceMode } = this.state;
+      const { sliceMode, slice } = this.state;
       const sliceCenter = vtkBoundingBox.getCenter(
         this.props.actors[0].getMapper().getBoundsForSlice()
       );
-      if (this.cutActorsCache[sliceMode][sliceCenter]) {
-        this.cutActors = this.cutActorsCache[sliceMode][sliceCenter];
+      if (this.cutActorsCache[sliceMode][slice]) {
+        this.cutActors = this.cutActorsCache[sliceMode][slice];
       } else {
         let normal = [1, 0, 0];
         switch (sliceMode) {
@@ -137,7 +137,7 @@ export default class View2DImageMapper extends Component {
           const tubeFilter = vtkTubeFilter.newInstance();
           tubeFilter.setInputConnection(cutter.getOutputPort());
           tubeFilter.setCapping(false);
-          tubeFilter.setNumberOfSides(50);
+          tubeFilter.setNumberOfSides(5);
           tubeFilter.setRadius(1);
           const cutMapper = vtkMapper.newInstance();
           cutMapper.setInputConnection(tubeFilter.getOutputPort());
@@ -150,7 +150,7 @@ export default class View2DImageMapper extends Component {
           cutProperty.setOpacity(this.props.colors[i][3] / 255);
           this.cutActors.push(cutActor);
         });
-        this.cutActorsCache[sliceMode][sliceCenter] = [...this.cutActors];
+        this.cutActorsCache[sliceMode][slice] = [...this.cutActors];
       }
 
       this.cutActors.forEach(this.renderer.addActor);

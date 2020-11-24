@@ -26,7 +26,8 @@ function vtkInteractorStyleCrosshairsImageMapper(publicAPI, model) {
     api.svgWidgets.crosshairsWidget.moveCrosshairs(
       publicAPI.getSliceCenter(),
       apis,
-      apiIndex
+      apiIndex,
+      true
     );
 
     publicAPI.invokeInteractionEvent({ type: 'InteractionEvent' });
