@@ -387,7 +387,7 @@ export default class View3DMarchingCubes extends Component {
     const selectContainer = { top: '10px', left: '10px', position: 'absolute' };
 
     let select = null;
-    if (this.state.display) {
+    if (this.state.display && Object.keys(this.actorMap).length > 1) {
       select = (
         <select
           onChange={e => {

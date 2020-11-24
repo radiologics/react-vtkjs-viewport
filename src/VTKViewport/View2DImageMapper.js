@@ -22,8 +22,6 @@ export default class View2DImageMapper extends Component {
     actor: PropTypes.object,
     stlPolyData: PropTypes.array,
     colors: PropTypes.array,
-    radius: PropTypes.number,
-    smoothness: PropTypes.number,
     labelmapActors: PropTypes.object,
     dataDetails: PropTypes.object,
     onCreated: PropTypes.func,
@@ -33,11 +31,6 @@ export default class View2DImageMapper extends Component {
     labelmapRenderingOptions: PropTypes.object,
     planeMap: PropTypes.object,
     onUpdateSTLConfig: PropTypes.func,
-  };
-
-  static defaultProps = {
-    radius: 1,
-    smoothness: 5,
   };
 
   constructor(props) {
@@ -52,9 +45,16 @@ export default class View2DImageMapper extends Component {
       labelmap: createSub(),
     };
     this.interactorStyleSubs = [];
+    let radius, nsides;
+    if (window.stlSettings) {
+      radius = window.stlSettings.radius;
+      nsides = window.stlSettings.nsides;
+    }
     this.state = {
       voi: this.getVOI(props.actor),
       freezeSlice: false,
+      radius: radius || 1,
+      nsides: nsides || 3,
     };
     this.apiProperties = {};
     this.resetCutActorsCache();
@@ -111,9 +111,9 @@ export default class View2DImageMapper extends Component {
     }
 
     this.cutActors = [];
-    const { stlPolyData, radius, smoothness, actor } = this.props;
+    const { stlPolyData, actor } = this.props;
     if (stlPolyData) {
-      const { sliceMode, slice } = this.state;
+      const { sliceMode, slice, radius, nsides } = this.state;
       const sliceCenter = vtkBoundingBox.getCenter(
         actor.getMapper().getBoundsForSlice()
       );
@@ -143,7 +143,7 @@ export default class View2DImageMapper extends Component {
           const tubeFilter = vtkTubeFilter.newInstance();
           tubeFilter.setInputConnection(cutter.getOutputPort());
           tubeFilter.setCapping(false);
-          tubeFilter.setNumberOfSides(smoothness);
+          tubeFilter.setNumberOfSides(nsides);
           tubeFilter.setRadius(radius);
           const cutMapper = vtkMapper.newInstance();
           cutMapper.setInputConnection(tubeFilter.getOutputPort());
@@ -339,6 +339,7 @@ export default class View2DImageMapper extends Component {
       this
     );
     const boundUpdateSTLConfig = this.updateSTLConfig.bind(this);
+    const boundUpdateSTLParams = this.updateSTLParams.bind(this);
     const boundSetFreezeSlice = this.setFreezeSlice.bind(this);
 
     this.svgWidgets = {};
@@ -370,6 +371,7 @@ export default class View2DImageMapper extends Component {
         requestNewSegmentation: boundRequestNewSegmentation,
         updateSegmentationConfig: boundUpdateSegmentationConfig,
         updateSTLConfig: boundUpdateSTLConfig,
+        updateSTLParams: boundUpdateSTLParams,
         setCamera: boundSetCamera,
         get: boundGetApiProperty,
         set: boundSetApiProperty,
@@ -465,6 +467,20 @@ export default class View2DImageMapper extends Component {
 
   updateSTLConfig() {
     this.props.onUpdateSTLConfig();
+  }
+
+  updateSTLParams() {
+    const { radius, nsides } = window.stlSettings;
+    this.setState(
+      {
+        radius,
+        nsides,
+      },
+      () => {
+        this.resetCutActorsCache();
+        this.replaceCutActors();
+      }
+    );
   }
 
   setInteractorStyle({ istyle, callbacks = {}, configuration = {} }) {
