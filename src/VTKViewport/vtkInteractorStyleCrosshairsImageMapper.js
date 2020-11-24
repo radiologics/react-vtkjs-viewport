@@ -55,9 +55,7 @@ function vtkInteractorStyleCrosshairsImageMapper(publicAPI, model) {
 
     const renderer = api.genericRenderWindow.getRenderer();
     const camera = renderer.getActiveCamera();
-    api.actors.forEach(actor => {
-      actor.getMapper().setSliceFromCamera(camera);
-    });
+    api.actor.getMapper().setSliceFromCamera(camera);
 
     let worldCoords = api.get('cachedCrosshairWorldPosition');
     // we want to reuse the cached coords, replacing for our new slice (set by camera)

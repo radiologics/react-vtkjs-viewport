@@ -19,9 +19,11 @@ import vtkTubeFilter from 'vtk.js/Sources/Filters/General/TubeFilter';
 
 export default class View2DImageMapper extends Component {
   static propTypes = {
-    actors: PropTypes.array,
+    actor: PropTypes.object,
     stlPolyData: PropTypes.array,
     colors: PropTypes.array,
+    radius: PropTypes.number,
+    smoothness: PropTypes.number,
     labelmapActors: PropTypes.object,
     dataDetails: PropTypes.object,
     onCreated: PropTypes.func,
@@ -31,6 +33,11 @@ export default class View2DImageMapper extends Component {
     labelmapRenderingOptions: PropTypes.object,
     planeMap: PropTypes.object,
     onUpdateSTLConfig: PropTypes.func,
+  };
+
+  static defaultProps = {
+    radius: 1,
+    smoothness: 5,
   };
 
   constructor(props) {
@@ -46,7 +53,7 @@ export default class View2DImageMapper extends Component {
     };
     this.interactorStyleSubs = [];
     this.state = {
-      voi: this.getVOI(props.actors[0]),
+      voi: this.getVOI(props.actor),
       freezeSlice: false,
     };
     this.apiProperties = {};
@@ -62,15 +69,13 @@ export default class View2DImageMapper extends Component {
     ].forEach(mode => (this.cutActorsCache[mode] = {}));
   }
 
-  setupActors(actors, labelmapActorsArray, imageMapper, slice, sliceMode) {
+  setupActors(actor, labelmapActorsArray, imageMapper, slice, sliceMode) {
     // Set source data
-    actors.forEach(actor => {
-      // Set slice orientation/mode and camera view
-      actor.getMapper().setSlicingMode(sliceMode);
+    // Set slice orientation/mode and camera view
+    actor.getMapper().setSlicingMode(sliceMode);
 
-      // Set middle slice.
-      actor.getMapper().setSlice(slice);
-    });
+    // Set middle slice.
+    actor.getMapper().setSlice(slice);
 
     this.replaceCutActors();
 
@@ -106,10 +111,11 @@ export default class View2DImageMapper extends Component {
     }
 
     this.cutActors = [];
-    if (this.props.stlPolyData) {
+    const { stlPolyData, radius, smoothness, actor } = this.props;
+    if (stlPolyData) {
       const { sliceMode, slice } = this.state;
       const sliceCenter = vtkBoundingBox.getCenter(
-        this.props.actors[0].getMapper().getBoundsForSlice()
+        actor.getMapper().getBoundsForSlice()
       );
       if (this.cutActorsCache[sliceMode][slice]) {
         this.cutActors = this.cutActorsCache[sliceMode][slice];
@@ -137,8 +143,8 @@ export default class View2DImageMapper extends Component {
           const tubeFilter = vtkTubeFilter.newInstance();
           tubeFilter.setInputConnection(cutter.getOutputPort());
           tubeFilter.setCapping(false);
-          tubeFilter.setNumberOfSides(5);
-          tubeFilter.setRadius(1);
+          tubeFilter.setNumberOfSides(smoothness);
+          tubeFilter.setRadius(radius);
           const cutMapper = vtkMapper.newInstance();
           cutMapper.setInputConnection(tubeFilter.getOutputPort());
           const cutActor = vtkActor.newInstance();
@@ -171,7 +177,7 @@ export default class View2DImageMapper extends Component {
 
     let widgets = [];
     let filters = [];
-    const { orientation, planeMap, actors } = this.props;
+    const { orientation, planeMap, actor } = this.props;
 
     let sliceMode;
     switch (planeMap[orientation].plane) {
@@ -230,9 +236,7 @@ export default class View2DImageMapper extends Component {
       // });
 
       if (!this.state.freezeSlice) {
-        this.props.actors.forEach(actor => {
-          actor.getMapper().setSliceFromCamera(baseCamera);
-        });
+        actor.getMapper().setSliceFromCamera(baseCamera);
       }
     }.bind(this);
 
@@ -247,16 +251,15 @@ export default class View2DImageMapper extends Component {
     this.svgWidgetManager = svgWidgetManager;
 
     // Add all actors to renderer
-    actors.forEach(renderer.addActor);
+    renderer.addActor(actor);
     if (labelmapActorsArray) {
       labelmapActorsArray.forEach(renderer.addActor);
     }
 
-    const imageActor = actors[0];
-    imageActor.onModified(() => {
+    actor.onModified(() => {
       this.updateImage();
     });
-    const imageMapper = imageActor.getMapper();
+    const imageMapper = actor.getMapper();
     const actorVTKImageData = imageMapper.getInputData();
     const dimensions = actorVTKImageData.getDimensions();
 
@@ -305,13 +308,7 @@ export default class View2DImageMapper extends Component {
     // set 2D camera position
     this.setCamera(sliceMode, flipped, viewUp, renderer, actorVTKImageData);
 
-    this.setupActors(
-      actors,
-      labelmapActorsArray,
-      imageMapper,
-      slice,
-      sliceMode
-    );
+    this.setupActors(actor, labelmapActorsArray, imageMapper, slice, sliceMode);
 
     this.setState({
       slice,
@@ -362,7 +359,7 @@ export default class View2DImageMapper extends Component {
         widgets,
         svgWidgets: this.svgWidgets,
         filters,
-        actors,
+        actor,
         sliceMode,
         _component: this,
         updateImage: boundUpdateImage,
@@ -386,15 +383,15 @@ export default class View2DImageMapper extends Component {
 
   componentDidUpdate(prevProps) {
     const { slice, sliceMode } = this.state;
-    const { actors, labelmapActors, stlPolyData, colors } = this.props;
+    const { actor, labelmapActors, stlPolyData, colors } = this.props;
     let updated = false;
     const renderer = this.renderer;
-    if (actors !== prevProps.actors) {
-      prevProps.actors.forEach(renderer.removeActor);
-      actors.forEach(renderer.addActor);
+    if (actor !== prevProps.actor) {
+      renderer.removeActor(prevProps.actor);
+      renderer.addActor(actor);
       updated = true;
     }
-    const imageMapper = actors[0].getMapper();
+    const imageMapper = actor.getMapper();
     const labelmapActorsArrayOld = prevProps.labelmapActors
       ? prevProps.labelmapActors[sliceMode]
       : [];
@@ -422,7 +419,7 @@ export default class View2DImageMapper extends Component {
 
     if (updated) {
       this.setupActors(
-        actors,
+        actor,
         labelmapActorsArray,
         imageMapper,
         slice,
@@ -471,7 +468,7 @@ export default class View2DImageMapper extends Component {
   }
 
   setInteractorStyle({ istyle, callbacks = {}, configuration = {} }) {
-    const { actors } = this.props;
+    const { actor } = this.props;
     const renderWindow = this.genericRenderWindow.getRenderWindow();
     const currentIStyle = renderWindow.getInteractor().getInteractorStyle();
     // unsubscribe from previous iStyle's callbacks.
@@ -489,8 +486,8 @@ export default class View2DImageMapper extends Component {
     if (currentViewport) {
       istyle.setViewport(currentViewport);
     }
-    if (istyle.getImageActor && istyle.getImageActor() !== actors[0]) {
-      istyle.setImageActor(actors[0]);
+    if (istyle.getImageActor && istyle.getImageActor() !== actor) {
+      istyle.setImageActor(actor);
     }
     renderWindow.render();
     // Add appropriate callbacks
@@ -510,12 +507,10 @@ export default class View2DImageMapper extends Component {
   }
 
   updateVOI(windowWidth, windowCenter) {
-    const actors = this.props.actors;
+    const { actor } = this.props;
     const renderWindow = this.genericRenderWindow.getRenderWindow();
-    actors.forEach(actor => {
-      actor.getProperty().setColorWindow(windowWidth);
-      actor.getProperty().setColorLevel(windowCenter);
-    });
+    actor.getProperty().setColorWindow(windowWidth);
+    actor.getProperty().setColorLevel(windowCenter);
     renderWindow.render();
     this.setState({ voi: { windowWidth, windowCenter } });
   }

@@ -147,7 +147,7 @@ function vtkSVGCrosshairsWidgetImageMapper(publicAPI, model) {
           // accordingly, accounting for offset from panning
           const istyle = renderWindow.getInteractor().getInteractorStyle();
           const camera = renderer.getActiveCamera();
-          const imageMapper = api.actors[0].getMapper();
+          const imageMapper = api.actor.getMapper();
           const prevFp = camera.getFocalPoint();
           const prevCenter = istyle.getSliceCenter();
           const offset = [];
