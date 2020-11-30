@@ -52,7 +52,7 @@ export default function loadImageDataProgressively(imageDataObject) {
   const numberOfFrames = imageIds.length;
   let numberProcessed = 0;
 
-  const reRenderFraction = numberOfFrames / 5;
+  let reRenderFraction = Math.min(numberOfFrames / 10, 20);
   let reRenderTarget = reRenderFraction;
 
   const insertPixelDataErrorHandler = error => {
@@ -94,6 +94,9 @@ export default function loadImageDataProgressively(imageDataObject) {
     numberProcessed++;
 
     if (numberProcessed > reRenderTarget) {
+      if (numberProcessed / numberOfFrames > 0.5) {
+        reRenderFraction = Math.min(numberOfFrames / 5, 50);
+      }
       reRenderTarget += reRenderFraction;
 
       vtkImageData.modified();
