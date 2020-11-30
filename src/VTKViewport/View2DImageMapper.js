@@ -53,8 +53,8 @@ export default class View2DImageMapper extends Component {
     this.state = {
       voi: this.getVOI(props.actor),
       freezeSlice: false,
-      radius: radius || 0.5,
-      nsides: nsides || 3,
+      radius: radius || 0.3,
+      nsides: nsides || 5,
     };
     this.apiProperties = {};
     this.resetCutActorsCache();
@@ -112,56 +112,58 @@ export default class View2DImageMapper extends Component {
 
     this.cutActors = [];
     const { stlPolyData, actor } = this.props;
-    if (stlPolyData) {
-      const { sliceMode, slice, radius, nsides } = this.state;
-      const sliceCenter = vtkBoundingBox.getCenter(
-        actor.getMapper().getBoundsForSlice()
-      );
-      if (this.cutActorsCache[sliceMode][slice]) {
-        this.cutActors = this.cutActorsCache[sliceMode][slice];
-      } else {
-        let normal = [1, 0, 0];
-        switch (sliceMode) {
-          case vtkImageMapper.SlicingMode.I:
-            normal = [1, 0, 0];
-            break;
-          case vtkImageMapper.SlicingMode.J:
-            normal = [0, 1, 0];
-            break;
-          case vtkImageMapper.SlicingMode.K:
-            normal = [0, 0, 1];
-            break;
-        }
-
-        this.props.stlPolyData.forEach((polyData, i) => {
-          const plane = vtkPlane.newInstance();
-          plane.setOrigin(sliceCenter);
-          plane.setNormal(...normal);
-          const cutter = vtkCutter.newInstance();
-          cutter.setCutFunction(plane);
-          cutter.setInputData(polyData);
-          const tubeFilter = vtkTubeFilter.newInstance();
-          tubeFilter.setInputConnection(cutter.getOutputPort());
-          tubeFilter.setCapping(false);
-          tubeFilter.setNumberOfSides(nsides);
-          tubeFilter.setRadius(radius);
-          const cutMapper = vtkMapper.newInstance();
-          cutMapper.setInputConnection(tubeFilter.getOutputPort());
-          const cutActor = vtkActor.newInstance();
-          cutActor.setMapper(cutMapper);
-          const cutProperty = cutActor.getProperty();
-          cutProperty.setRepresentation(vtkProperty.Representation.SURFACE);
-          cutProperty.setLighting(false);
-          cutProperty.setColor(...this.props.colors[i].map(c => c / 255));
-          cutProperty.setOpacity(this.props.colors[i][3] / 255);
-          this.cutActors.push(cutActor);
-        });
-        this.cutActorsCache[sliceMode][slice] = [...this.cutActors];
+    if (!stlPolyData || stlPolyData.length === 0) {
+      return;
+    }
+    const { sliceMode, slice, radius, nsides } = this.state;
+    const sliceCenter = vtkBoundingBox.getCenter(
+      actor.getMapper().getBoundsForSlice()
+    );
+    if (this.cutActorsCache[sliceMode][slice]) {
+      this.cutActors = this.cutActorsCache[sliceMode][slice];
+    } else {
+      let normal = [1, 0, 0];
+      switch (sliceMode) {
+        case vtkImageMapper.SlicingMode.I:
+          normal = [1, 0, 0];
+          break;
+        case vtkImageMapper.SlicingMode.J:
+          normal = [0, 1, 0];
+          break;
+        case vtkImageMapper.SlicingMode.K:
+          normal = [0, 0, 1];
+          break;
       }
 
-      this.cutActors.forEach(this.renderer.addActor);
-      this.updateImage();
+      this.props.stlPolyData.forEach((polyData, i) => {
+        const plane = vtkPlane.newInstance();
+        plane.setOrigin(sliceCenter);
+        plane.setNormal(...normal);
+        const cutter = vtkCutter.newInstance();
+        cutter.setCutFunction(plane);
+        cutter.setInputData(polyData);
+        // const tubeFilter = vtkTubeFilter.newInstance();
+        // tubeFilter.setInputConnection(cutter.getOutputPort());
+        // tubeFilter.setCapping(false);
+        // tubeFilter.setNumberOfSides(nsides);
+        // tubeFilter.setRadius(radius);
+        const cutMapper = vtkMapper.newInstance();
+        //cutMapper.setInputConnection(tubeFilter.getOutputPort());
+        cutMapper.setInputConnection(cutter.getOutputPort());
+        const cutActor = vtkActor.newInstance();
+        cutActor.setMapper(cutMapper);
+        const cutProperty = cutActor.getProperty();
+        cutProperty.setRepresentation(vtkProperty.Representation.SURFACE);
+        cutProperty.setLighting(false);
+        cutProperty.setColor(...this.props.colors[i].map(c => c / 255));
+        cutProperty.setOpacity(this.props.colors[i][3] / 255);
+        this.cutActors.push(cutActor);
+      });
+      this.cutActorsCache[sliceMode][slice] = [...this.cutActors];
     }
+
+    this.cutActors.forEach(this.renderer.addActor);
+    this.updateImage();
   }
 
   componentDidMount() {
