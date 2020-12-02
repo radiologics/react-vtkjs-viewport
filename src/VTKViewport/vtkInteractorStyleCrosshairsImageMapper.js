@@ -3,6 +3,7 @@ import vtkInteractorStyleImage from 'vtk.js/Sources/Interaction/Style/Interactor
 import Constants from 'vtk.js/Sources/Rendering/Core/InteractorStyle/Constants';
 import vtkPlaneManipulator from 'vtk.js/Sources/Widgets/Manipulators/PlaneManipulator';
 import vtkBoundingBox from 'vtk.js/Sources/Common/DataModel/BoundingBox';
+import vtkCoordinate from 'vtk.js/Sources/Rendering/Core/Coordinate';
 
 const { States } = Constants;
 

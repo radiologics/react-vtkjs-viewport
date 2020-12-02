@@ -65,7 +65,10 @@ class Test extends Component {
       const imageData = vtkITKHelper.convertItkToVtkImage(itkImage)
       console.log(imageData)*/
 
-      const fullScreenRenderer = vtkFullScreenRenderWindow.newInstance()
+      const fullScreenRenderWindow = vtkFullScreenRenderWindow.newInstance()
+      console.log(fullScreenRenderWindow)
+      fullScreenRenderWindow.setContainer(document.getElementById('VTKWindow'))
+
       const renderer = fullScreenRenderer.getRenderer()
       const renderWindow = fullScreenRenderer.getRenderWindow()
 
@@ -107,7 +110,7 @@ class Test extends Component {
 
   render(){
     return (
-      <h1>Model: </h1>
+      //<div width=500 height=500 id='VTKWindow'></div>
     )
   }
 }

@@ -11,7 +11,7 @@ import VTKRotatableCrosshairsExample from './VTKRotatableCrosshairsExample.js';
 import VTK4UpExample from './VTK4UpExample.js';
 import VTKMPRRotateExample from './VTKMPRRotateExample.js';
 import VTKVolumeRenderingExample from './VTKVolumeRenderingExample.js';
-import VtkTest from './vtkTest.js';
+import VTKCrosshairs from './VTKCrosshairs.js';
 
 function LinkOut({ href, text }) {
   return (
@@ -97,10 +97,10 @@ function Index() {
         'Generating vtkjs imagedata from cornerstone images and displaying them in a VTK viewport.',
     },
     {
-      title: 'VTK Test',
-      url: '/testVtk',
+      title: '3D Crosshairs',
+      url: '/3DCrosshairs',
       text:
-      'Testing to get vtkjs working'
+      'Rendering crosshairs on 3D image that correspond to 2D Rotatable Crosshairs'
     }
   ];
 
@@ -165,7 +165,7 @@ function AppRouter() {
   const rotatableCrosshairs = () =>
     Example({ children: <VTKRotatableCrosshairsExample /> });
   const fourUp = () => Example({ children: <VTK4UpExample /> });
-  const testVtk = () => Example({ children: <VtkTest /> });
+  const crosshairs3D = () => Example({ children: <VTKCrosshairs /> });
   const rotateMPR = () => Example({ children: <VTKMPRRotateExample /> });
   const volumeRendering = () =>
     Example({ children: <VTKVolumeRenderingExample /> });
@@ -188,7 +188,7 @@ function AppRouter() {
         <Route exact path="/rotate" render={rotateMPR} />
         <Route exact path="/volume-rendering" render={volumeRendering} />
         <Route exact path="/cornerstone-load-image-data" render={loadImage} />
-        <Route exact path='/testVtk' render={testVtk} />
+        <Route exact path='/3DCrosshairs' render={crosshairs3D} />
         <Route exact component={Index} />
       </Switch>
     </Router>

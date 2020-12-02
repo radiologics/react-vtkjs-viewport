@@ -21,6 +21,9 @@ import getImageData from './lib/getImageData.js';
 import loadImageData from './lib/loadImageData.js';
 import invertVolume from './lib/invertVolume.js';
 import EVENTS from './events.js';
+import VTKAxis from './VTKViewport/VTKAxis.js';
+import vtkInteractorStyle3DCrosshairs from './VTKViewport/vtkInteractorStyle3DCrosshairs.js';
+import vtk3DCrosshairsInterface from './VTKViewport/vtk3DCrosshairsInterface.js';
 
 export {
   View2D,
@@ -29,6 +32,7 @@ export {
   View3DMarchingCubes,
   ViewportOverlay,
   ViewportData,
+  VTKAxis,
   getImageData,
   loadImageData,
   vtkInteractorStyleMPRWindowLevel,
@@ -40,6 +44,8 @@ export {
   vtkInteractorStyleMPRSlice,
   vtkInteractorStyleImageWindowLevel,
   vtkInteractorStyleImagePanZoom,
+  vtkInteractorStyle3DCrosshairs,
+  vtk3DCrosshairsInterface,
   vtkSVGWidgetManager,
   vtkSVGCrosshairsWidget,
   vtkSVGRotatableCrosshairsWidget,

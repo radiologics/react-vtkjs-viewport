@@ -146,6 +146,10 @@ function vtkSVGCrosshairsWidgetImageMapper(publicAPI, model) {
           imageMapper.setSlice(slice);
         }
       } else {
+        console.log(api);
+        console.log(wPos.getComputedWorldValue(renderer));
+        console.log(model);
+        api.crosshairs.setPoint(...wPos.getComputedWorldValue(renderer));
         //TODO
       }
 

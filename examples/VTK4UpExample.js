@@ -136,7 +136,7 @@ const generateSegVolume = async (
   //Fetch images with cornerstone just to cache the metadata needed to format the SEG.
   for (let i = 0; i < imageIds.length; i++) {
     const promise = window.cornerstone.loadAndCacheImage(imageIds[i]);
-
+    console.log(imageIds[i])
     imagePromises.push(promise);
   }
 
