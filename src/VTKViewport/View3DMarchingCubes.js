@@ -278,8 +278,6 @@ export default class View3DMarchingCubes extends Component {
       istyle.set(configuration);
     }
 
-    console.log(istyle);
-
     if (istyle.getActor && istyle.getActor() !== actors[0]) {
       istyle.setActor(actors[0]);
     }

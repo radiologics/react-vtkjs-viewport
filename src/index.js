@@ -23,6 +23,7 @@ import invertVolume from './lib/invertVolume.js';
 import EVENTS from './events.js';
 import VTKAxis from './VTKViewport/VTKAxis.js';
 import vtkInteractorStyle3DCrosshairs from './VTKViewport/vtkInteractorStyle3DCrosshairs.js';
+import vtkInteractorStyle2DCrosshairs from './VTKViewport/vtkInteractorStyle2DCrosshairs.js';
 import vtk3DCrosshairsInterface from './VTKViewport/vtk3DCrosshairsInterface.js';
 
 export {
@@ -45,6 +46,7 @@ export {
   vtkInteractorStyleImageWindowLevel,
   vtkInteractorStyleImagePanZoom,
   vtkInteractorStyle3DCrosshairs,
+  vtkInteractorStyle2DCrosshairs,
   vtk3DCrosshairsInterface,
   vtkSVGWidgetManager,
   vtkSVGCrosshairsWidget,

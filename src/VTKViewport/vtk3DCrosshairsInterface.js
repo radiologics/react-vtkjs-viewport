@@ -27,22 +27,26 @@ function vtk3DCrosshairsInterface(publicAPI, model) {
         'worldPos, apis must be defined in order to update crosshairs.'
       );
     }
-    console.log(apis[apiIndex].get('actor'));
-    apis[apiIndex].set('cachedCrosshairWorldPosition', worldPos);
-    console.log(apis[apiIndex].get('cachedCrosshairWorldPosition'));
-    console.log(apis[apiIndex].get('axis'));
 
-    apis.map(api => {
+    // console.log(apis[apiIndex])
+    // console.log(apis[apiIndex].genericRenderWindow.getRenderWindow().getInteractor().getInteractorStyle())
+    // console.log(apis[apiIndex].genericRenderWindow.getRenderWindow().getInteractor().getInteractorStyle().getAxis())
+
+    apis[apiIndex].set('cachedCrosshairWorldPosition', worldPos);
+
+    apis.forEach((api, viewportIndex) => {
       const renderWindow = api.genericRenderWindow.getRenderWindow();
       const renderer = api.genericRenderWindow.getRenderer();
       const wPos = vtkCoordinate.newInstance();
       wPos.setCoordinateSystemToWorld();
       wPos.setValue(...worldPos);
 
-      console.log(apis[apiIndex]);
-      console.log(apis[apiIndex].get('axis'));
-
-      api.get('axis').axis.setPoint(...wPos.getComputedWorldValue(renderer));
+      api.genericRenderWindow
+        .getRenderWindow()
+        .getInteractor()
+        .getInteractorStyle()
+        .getAxis()
+        .setPoint(...wPos.getComputedWorldValue(renderer));
 
       if (api.type === 'VIEW2D') {
         if (viewportIndex == apiIndex) {

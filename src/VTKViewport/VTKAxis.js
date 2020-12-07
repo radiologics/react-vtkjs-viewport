@@ -10,10 +10,11 @@ import vtkPolyData from 'vtk.js/Sources/Common/DataModel/PolyData';
 import vtkPoints from 'vtk.js/Sources/Common/Core/Points';
 
 class Axis {
-  constructor(x, y, z) {
+  constructor(x, y, z, width) {
     this.x = x;
     this.y = y;
     this.z = z;
+    this.width = width;
 
     this.lines = [
       vtkLineSource.newInstance(),
@@ -33,13 +34,13 @@ class Axis {
       vtkMapper.newInstance(),
     ];
 
-    this.lines[0].setPoint1([x - 1, y, z]);
-    this.lines[1].setPoint1([x, y - 1, z]);
-    this.lines[2].setPoint1([x, y, z - 1]);
+    this.lines[0].setPoint1([x - width, y, z]);
+    this.lines[1].setPoint1([x, y - width, z]);
+    this.lines[2].setPoint1([x, y, z - width]);
 
-    this.lines[0].setPoint2([x + 1, y, z]);
-    this.lines[1].setPoint2([x, y + 1, z]);
-    this.lines[2].setPoint2([x, y, z + 1]);
+    this.lines[0].setPoint2([x + width, y, z]);
+    this.lines[1].setPoint2([x, y + width, z]);
+    this.lines[2].setPoint2([x, y, z + width]);
 
     this.actors[0].getProperty().setColor(255, 0, 0);
     this.actors[1].getProperty().setColor(0, 255, 0);
@@ -56,13 +57,13 @@ class Axis {
     this.y = y;
     this.z = z;
 
-    this.lines[0].setPoint1([x, y, z]);
-    this.lines[1].setPoint1([x, y, z]);
-    this.lines[2].setPoint1([x, y, z]);
+    this.lines[0].setPoint1([x - this.width, y, z]);
+    this.lines[1].setPoint1([x, y - this.width, z]);
+    this.lines[2].setPoint1([x, y, z - this.width]);
 
-    this.lines[0].setPoint2([x + 1, y, z]);
-    this.lines[1].setPoint2([x, y + 1, z]);
-    this.lines[2].setPoint2([x, y, z + 1]);
+    this.lines[0].setPoint2([x + this.width, y, z]);
+    this.lines[1].setPoint2([x, y + this.width, z]);
+    this.lines[2].setPoint2([x, y, z + this.width]);
   }
 }
 

@@ -2,15 +2,15 @@ import React from 'react';
 import { Component } from 'react';
 import dcmjs from 'dcmjs';
 import {
+  VTKAxis,
   View2DImageMapper,
   View3DMarchingCubes,
-  getImageData,
-  loadImageData,
   vtkInteractorStyleCrosshairsImageMapper,
   vtkSVGCrosshairsWidgetImageMapper,
-  vtkInteractorStyleCrosshairsMarchingCubes,
-  vtkInteractorStyleImagePanZoom,
-} from '@vtk-viewport';
+  vtkInteractorStyle3DCrosshairs,
+  vtkInteractorStyle2DCrosshairs,
+  vtk3DCrosshairsInterface,
+  vtkInteractorStyleImagePanZoom,} from '@vtk-viewport'
 import vtkInteractorStyleTrackballCamera from 'vtk.js/Sources/Interaction/Style/InteractorStyleTrackballCamera';
 import vtkImageMapper from 'vtk.js/Sources/Rendering/Core/ImageMapper';
 import vtkImageSlice from 'vtk.js/Sources/Rendering/Core/ImageSlice';
@@ -27,30 +27,39 @@ import vtkImageOutlineFilter from 'vtk.js/Sources/Filters/General/ImageOutlineFi
 
 const segmentationModule = cornerstoneTools.getModule('segmentation');
 
-const url = 'https://server.dcmjs.org/dcm4chee-arc/aets/DCM4CHEE/rs';
-const studyInstanceUID =
-  '1.3.12.2.1107.5.2.32.35162.30000015050317233592200000046';
-const mrSeriesInstanceUID =
-  '1.3.12.2.1107.5.2.32.35162.1999123112191238897317963.0.0.0';
-// const segSeriesInstanceUID =
-//   '1.3.12.2.1107.5.2.32.35162.1999123112191238897317963.0.0.0';
-const searchInstanceOptions = {
-  studyInstanceUID,
-};
 
 // MR  1.3.12.2.1107.5.2.32.35162.1999123112191238897317963.0.0.0
 // SEG 	1.2.276.0.7230010.3.1.3.296485376.8.1542816659.201008
 
-const segURL = `${window.location.origin}/brainSeg/brainSeg.dcm`;
+const segURL = `${window.location.origin}/examples/dicoms/brainSeg.dcm`;
 
 // const segURL =
 //   'https://server.dcmjs.org/dcm4chee-arc/aets/DCM4CHEE/rs/studies/1.3.12.2.1107.5.2.32.35162.30000015050317233592200000046/series/1.2.276.0.7230010.3.1.3.296485376.8.1542816659.201008/instances/1.2.276.0.7230010.3.1.4.296485376.8.1542816659.201009';
 
-function loadDataset(imageIds, displaySetInstanceUid) {
-  const imageDataObject = getImageData(imageIds, displaySetInstanceUid);
+function loadDataset(images) {
+  const width = images[0].width
+  const height = images[0].height
+  const depth = images.length
 
-  loadImageData(imageDataObject);
-  return imageDataObject;
+  const spacingXZ = images[0].data.string('x00280030')
+  const spacingX = spacingXZ.split('\\')[0]
+  const spacingZ = spacingXZ.split('\\')[1]
+  const spacingY = images[0].data.string('x00180050')
+
+  var pixelDatas = images.map(image => {return image.getPixelData()})
+  var pixelData = []
+  pixelDatas.map(data => {pixelData = pixelData.concat([...data])})
+  var pixelData = new Uint16Array(pixelData)
+
+  const dataArray = vtkDataArray.newInstance({
+    values: pixelData
+  })
+  const imageData = vtkImageData.newInstance()
+  imageData.getPointData().setScalars(dataArray)
+  imageData.setDimensions([width, height, depth])
+  imageData.setSpacing(Number(spacingX), Number(spacingZ), Number(spacingY))
+
+  return {vtkImageData: imageData, dimensions: [width, height, depth]}
 }
 
 function makeLabelMapColorTransferFunction(lablemapColorLUT) {
@@ -126,6 +135,20 @@ function createStudyImageIds(baseUrl, studySearchOptions) {
   });
 }
 
+async function getImageIds(urls){
+  const ids = []
+  for (let i = 0; i < urls.length; i++){
+    const file = await fetch(urls[i])
+    const blob = await file.blob()
+    const id = await window.cornerstoneWADOImageLoader.wadouri.fileManager.add(blob)
+    const image = await window.cornerstone.loadAndCacheImage(id)
+    const metaDataProvider = window.cornerstoneWADOImageLoader.wadouri.metaData.metaDataProvider
+    cornerstone.metaData.addProvider(metaDataProvider)
+    ids.push({image, id})
+  }
+  return ids
+}
+
 const generateSegVolume = async (
   imageDataObject,
   segP10ArrayBuffer,
@@ -136,7 +159,6 @@ const generateSegVolume = async (
   //Fetch images with cornerstone just to cache the metadata needed to format the SEG.
   for (let i = 0; i < imageIds.length; i++) {
     const promise = window.cornerstone.loadAndCacheImage(imageIds[i]);
-    console.log(imageIds[i])
     imagePromises.push(promise);
   }
 
@@ -209,6 +231,18 @@ async function fetchSegArrayBuffer(url) {
   });
 }
 
+/*
+✨✨✨✨
+✨✨✨✨
+✨✨✨✨
+✨✨✨✨
+Starts Here!
+✨✨✨✨
+✨✨✨✨
+✨✨✨✨
+✨✨✨✨
+*/
+
 class VTK4UPExample extends Component {
   state = {
     imageMappers: [],
@@ -217,32 +251,38 @@ class VTK4UPExample extends Component {
   async componentDidMount() {
     this.apis = [];
 
-    const imageIds = await createStudyImageIds(url, searchInstanceOptions);
+    const imageUrls = []
+    for (let i = 0; i < 88; i++){
+      imageUrls.push(`${window.location.origin}/examples/dicoms/${i}.dcm`)
+    }
 
-    let mrImageIds = imageIds.filter(imageId =>
-      imageId.includes(mrSeriesInstanceUID)
-    );
+    const ids = await getImageIds(imageUrls);
+
+  // let mrImageIds = imageIds.filter(imageId =>
+  //      imageId.includes(mrSeriesInstanceUID)
+  //    );
 
     // Sort the imageIds so the SEG is allocated correctly.
-    mrImageIds.sort((imageIdA, imageIdB) => {
-      const imagePlaneA = cornerstone.metaData.get(
-        'imagePlaneModule',
-        imageIdA
-      );
-      const imagePlaneB = cornerstone.metaData.get(
-        'imagePlaneModule',
-        imageIdB
-      );
 
-      return (
-        imagePlaneA.imagePositionPatient[0] -
-        imagePlaneB.imagePositionPatient[0]
-      );
+    ids.sort((a, b) => {
+      const spotA = Number(a.image.data.string('x00201041'))
+      const spotB = Number(b.image.data.string('x00201041'))
+
+      return spotA - spotB
+    })
+
+    const images = []
+    const mrImageIds = []
+    ids.forEach((id, i) => {
+      images.push(id.image)
+      mrImageIds.push(id.id)
     });
 
-    const mrImageDataObject = loadDataset(mrImageIds, 'mrDisplaySet');
+
+    const mrImageDataObject = loadDataset(images);
 
     const seg = await fetchSegArrayBuffer(segURL);
+
 
     const { labelmapDataObject, labelmapColorLUT } = await generateSegVolume(
       mrImageDataObject,
@@ -250,171 +290,169 @@ class VTK4UPExample extends Component {
       mrImageIds
     );
 
-    const onAllPixelDataInsertedCallback = () => {
-      // MR
-      /////// Replace with image mapping. ///////
 
-      // Use one dataset, and 3 actors/mappers for the 3 different views
-      const mrImageData = mrImageDataObject.vtkImageData;
+    // MR
+    /////// Replace with image mapping. ///////
 
-      const direction = mrImageData.getDirection();
-      const planes = [
-        direction.slice(0, 3),
-        direction.slice(3, 6),
-        direction.slice(6, 9),
-      ];
-      const orient = planes.map(arr =>
-        arr.findIndex(i => Math.abs(Math.round(i)) === 1)
-      );
-      const planeMap = {
-        Sagittal: {
-          plane: orient.indexOf(0),
-        },
-        Coronal: {
-          plane: orient.indexOf(1),
-        },
-        Axial: {
-          plane: orient.indexOf(2),
-        },
-      };
-      planeMap.Sagittal.flip = planes[planeMap.Sagittal.plane].some(
-        i => Math.round(i) === -1
-      );
-      planeMap.Coronal.flip = planes[planeMap.Coronal.plane].some(
-        i => Math.round(i) === -1
-      );
-      planeMap.Axial.flip = planes[planeMap.Axial.plane].some(
-        i => Math.round(i) === -1
-      );
+    // Use one dataset, and 3 actors/mappers for the 3 different views
+    const mrImageData = mrImageDataObject.vtkImageData;
 
-      const range = mrImageData
-        .getPointData()
-        .getScalars()
-        .getRange();
-
-      const windowWidth = Math.abs(range[1] - range[0]);
-      const windowLevel = range[0] + windowWidth / 2;
-
-      const imageActors = [];
-
-      for (let i = 0; i < 3; i++) {
-        const imageMapper = vtkImageMapper.newInstance();
-        const imageActor = vtkImageSlice.newInstance();
-
-        imageMapper.setInputData(mrImageData);
-        imageActor.setMapper(imageMapper);
-
-        imageActor.getProperty().setColorWindow(windowWidth);
-        imageActor.getProperty().setColorLevel(windowLevel);
-
-        imageActors.push(imageActor);
-      }
-
-      // SEG
-
-      const segRange = labelmapDataObject
-        .getPointData()
-        .getScalars()
-        .getRange();
-
-      const segMapper = vtkMapper.newInstance();
-      const segActor = vtkActor.newInstance();
-
-      const labelmapTransferFunctions = makeLabelMapColorTransferFunction(
-        labelmapColorLUT
-      );
-
-      const marchingCube = vtkImageMarchingCubes.newInstance({
-        contourValue: (segRange[0] + segRange[1]) / 3,
-        computeNormals: true,
-        mergePoints: true,
-      });
-      marchingCube.setInputData(labelmapDataObject);
-      segActor.getProperty().setColor(1, 0, 0);
-      segActor.setMapper(segMapper);
-      segMapper.setInputConnection(marchingCube.getOutputPort());
-
-      // labelmapActors for 2D views
-
-      const outline = vtkImageOutlineFilter.newInstance();
-      // opacity function for the outline filter
-      const labelmapOFun = vtkPiecewiseFunction.newInstance();
-
-      labelmapOFun.addPoint(0, 0); // our background value, 0, will be invisible
-      labelmapOFun.addPoint(0.5, 1);
-      labelmapOFun.addPoint(1, 1);
-
-      const labelmapActors = [];
-
-      outline.setInputData(labelmapDataObject);
-      outline.setSlicingMode(2);
-
-      for (let i = 0; i < 3; i++) {
-        const labelmapMapper = vtkImageMapper.newInstance();
-        const labelmapActor = vtkImageSlice.newInstance();
-
-        labelmapMapper.setInputData(outline.getOutputData());
-        labelmapActor.setMapper(labelmapMapper);
-        labelmapActor.getProperty().setInterpolationType(0);
-
-        labelmapActor
-          .getProperty()
-          .setRGBTransferFunction(labelmapTransferFunctions.cfun);
-
-        labelmapActor.getProperty().setScalarOpacity(labelmapOFun);
-
-        labelmapActors.push(labelmapActor);
-      }
-
-      const labelmapFillOFun = vtkPiecewiseFunction.newInstance();
-
-      labelmapFillOFun.addPoint(0, 0); // our background value, 0, will be invisible
-      labelmapFillOFun.addPoint(0.5, 0.1);
-      labelmapFillOFun.addPoint(1, 0.2);
-
-      const labelmapFillActors = [];
-
-      for (let i = 0; i < 3; i++) {
-        const labelmapFillMapper = vtkImageMapper.newInstance();
-        const labelmapFillActor = vtkImageSlice.newInstance();
-
-        labelmapFillMapper.setInputData(labelmapDataObject);
-        labelmapFillActor.setMapper(labelmapFillMapper);
-        labelmapFillActor.getProperty().setInterpolationType(0);
-
-        labelmapFillActor
-          .getProperty()
-          .setRGBTransferFunction(labelmapTransferFunctions.cfun);
-
-        labelmapFillActor.getProperty().setScalarOpacity(labelmapFillOFun);
-
-        labelmapFillActors.push(labelmapFillActor);
-      }
-
-      this.setState({
-        imageActors: {
-          I: imageActors[0],
-          J: imageActors[1],
-          K: imageActors[2],
-        },
-        labelmapActors: {
-          I: labelmapActors[0],
-          IFill: labelmapFillActors[0],
-          J: labelmapActors[1],
-          JFill: labelmapFillActors[1],
-          K: labelmapActors[2],
-          KFill: labelmapFillActors[2],
-        },
-        marchingCubesActor: [segActor],
-        paintFilterLabelMapImageData: labelmapDataObject,
-        paintFilterBackgroundImageData: mrImageDataObject.vtkImageData,
-        labelmapColorLUT,
-        displayCrosshairs: false,
-        planeMap,
-      });
+    const direction = mrImageData.getDirection();
+    const planes = [
+      direction.slice(0, 3),
+      direction.slice(3, 6),
+      direction.slice(6, 9),
+    ];
+    const orient = planes.map(arr =>
+      arr.findIndex(i => Math.abs(Math.round(i)) === 1)
+    );
+    const planeMap = {
+      Sagittal: {
+        plane: orient.indexOf(0),
+      },
+      Coronal: {
+        plane: orient.indexOf(1),
+      },
+      Axial: {
+        plane: orient.indexOf(2),
+      },
     };
+    planeMap.Sagittal.flip = planes[planeMap.Sagittal.plane].some(
+      i => Math.round(i) === -1
+    );
+    planeMap.Coronal.flip = planes[planeMap.Coronal.plane].some(
+      i => Math.round(i) === -1
+    );
+    planeMap.Axial.flip = planes[planeMap.Axial.plane].some(
+      i => Math.round(i) === -1
+    );
 
-    mrImageDataObject.onAllPixelDataInserted(onAllPixelDataInsertedCallback);
+    const range = mrImageData
+    .getPointData()
+    .getScalars()
+    .getRange();
+
+    const windowWidth = Math.abs(range[1] - range[0]);
+    const windowLevel = range[0] + windowWidth / 2;
+
+    const imageActors = [];
+
+    for (let i = 0; i < 3; i++) {
+      const imageMapper = vtkImageMapper.newInstance();
+      const imageActor = vtkImageSlice.newInstance();
+
+      imageMapper.setInputData(mrImageData);
+      imageActor.setMapper(imageMapper);
+
+      imageActor.getProperty().setColorWindow(windowWidth);
+      imageActor.getProperty().setColorLevel(windowLevel);
+
+      imageActors.push(imageActor);
+    }
+
+    // SEG
+
+    const segRange = labelmapDataObject
+    .getPointData()
+    .getScalars()
+    .getRange();
+
+    const segMapper = vtkMapper.newInstance();
+    const segActor = vtkActor.newInstance();
+
+    const labelmapTransferFunctions = makeLabelMapColorTransferFunction(
+      labelmapColorLUT
+    );
+
+    const marchingCube = vtkImageMarchingCubes.newInstance({
+      contourValue: (segRange[0] + segRange[1]) / 3,
+      computeNormals: true,
+      mergePoints: true,
+    });
+    marchingCube.setInputData(labelmapDataObject);
+    segActor.getProperty().setColor(1, 0, 0);
+    segActor.setMapper(segMapper);
+    segMapper.setInputConnection(marchingCube.getOutputPort());
+
+    // labelmapActors for 2D views
+
+    const outline = vtkImageOutlineFilter.newInstance();
+    // opacity function for the outline filter
+    const labelmapOFun = vtkPiecewiseFunction.newInstance();
+
+    labelmapOFun.addPoint(0, 0); // our background value, 0, will be invisible
+    labelmapOFun.addPoint(0.5, 1);
+    labelmapOFun.addPoint(1, 1);
+
+    const labelmapActors = [];
+
+    outline.setInputData(labelmapDataObject);
+    outline.setSlicingMode(2);
+
+    for (let i = 0; i < 3; i++) {
+      const labelmapMapper = vtkImageMapper.newInstance();
+      const labelmapActor = vtkImageSlice.newInstance();
+
+      labelmapMapper.setInputData(outline.getOutputData());
+      labelmapActor.setMapper(labelmapMapper);
+      labelmapActor.getProperty().setInterpolationType(0);
+
+      labelmapActor
+      .getProperty()
+      .setRGBTransferFunction(labelmapTransferFunctions.cfun);
+
+      labelmapActor.getProperty().setScalarOpacity(labelmapOFun);
+
+      labelmapActors.push(labelmapActor);
+    }
+
+    const labelmapFillOFun = vtkPiecewiseFunction.newInstance();
+
+    labelmapFillOFun.addPoint(0, 0); // our background value, 0, will be invisible
+    labelmapFillOFun.addPoint(0.5, 0.1);
+    labelmapFillOFun.addPoint(1, 0.2);
+
+    const labelmapFillActors = [];
+
+    for (let i = 0; i < 3; i++) {
+      const labelmapFillMapper = vtkImageMapper.newInstance();
+      const labelmapFillActor = vtkImageSlice.newInstance();
+
+      labelmapFillMapper.setInputData(labelmapDataObject);
+      labelmapFillActor.setMapper(labelmapFillMapper);
+      labelmapFillActor.getProperty().setInterpolationType(0);
+
+      labelmapFillActor
+      .getProperty()
+      .setRGBTransferFunction(labelmapTransferFunctions.cfun);
+
+      labelmapFillActor.getProperty().setScalarOpacity(labelmapFillOFun);
+
+      labelmapFillActors.push(labelmapFillActor);
+    }
+
+    this.setState({
+      imageActors: {
+        I: imageActors[0],
+        J: imageActors[1],
+        K: imageActors[2],
+      },
+      labelmapActors: {
+        I: labelmapActors[0],
+        IFill: labelmapFillActors[0],
+        J: labelmapActors[1],
+        JFill: labelmapFillActors[1],
+        K: labelmapActors[2],
+        KFill: labelmapFillActors[2],
+      },
+      marchingCubesActor: [segActor],
+      paintFilterLabelMapImageData: labelmapDataObject,
+      paintFilterBackgroundImageData: mrImageDataObject.vtkImageData,
+      labelmapColorLUT,
+      displayCrosshairs: false,
+      planeMap,
+    });
+
   }
 
   storeApi = (viewportIndex, type) => {
@@ -423,20 +461,22 @@ class VTK4UPExample extends Component {
       apis[viewportIndex] = api;
 
       // Add svg widget
-      api.addSVGWidget(
-        vtkSVGCrosshairsWidgetImageMapper.newInstance(),
-        'crosshairsWidget'
-      );
+      // api.addSVGWidget(
+      //   vtk3DCrosshairsInterface.newInstance(),
+      //   'crosshairsWidget'
+      // );
 
       const istyle =
         type === '2D'
-          ? vtkInteractorStyleImagePanZoom.newInstance()
-          : vtkInteractorStyleTrackballCamera.newInstance();
+          ? vtkInteractorStyle2DCrosshairs.newInstance()
+          : vtkInteractorStyle3DCrosshairs.newInstance()
+
+      // istyle.setCrosshairWidth(Math.max(...this.state.paintFilterBackgroundImageData.getDimensions()) * 2)
 
       // add istyle
       api.setInteractorStyle({
         istyle,
-        configuration: { apis, apiIndex: viewportIndex },
+        configuration: { apis, apiIndex: viewportIndex},
       });
 
       // // Its up to the layout manager of an app to know how many viewports are being created.
@@ -451,23 +491,23 @@ class VTK4UPExample extends Component {
     };
   };
 
-  toggleCrosshairs = () => {
-    const { displayCrosshairs } = this.state;
-    const apis = this.apis;
-
-    const shouldDisplayCrosshairs = !displayCrosshairs;
-
-    apis.forEach(api => {
-      const { svgWidgetManager, svgWidgets } = api;
-      if (!svgWidgets || !svgWidgets.crosshairsWidget) {
-        return;
-      }
-      svgWidgets.crosshairsWidget.setDisplay(shouldDisplayCrosshairs);
-      svgWidgetManager.render();
-    });
-
-    this.setState({ displayCrosshairs: shouldDisplayCrosshairs });
-  };
+  // toggleCrosshairs = () => {
+  //   const { displayCrosshairs } = this.state;
+  //   const apis = this.apis;
+  //
+  //   const shouldDisplayCrosshairs = !displayCrosshairs;
+  //
+  //   apis.forEach(api => {
+  //     const { svgWidgetManager, svgWidgets } = api;
+  //     if (!svgWidgets || !svgWidgets.crosshairsWidget) {
+  //       return;
+  //     }
+  //     svgWidgets.crosshairsWidget.setDisplay(shouldDisplayCrosshairs);
+  //     svgWidgetManager.render();
+  //   });
+  //
+  //   this.setState({ displayCrosshairs: shouldDisplayCrosshairs });
+  // };
 
   render() {
     if (

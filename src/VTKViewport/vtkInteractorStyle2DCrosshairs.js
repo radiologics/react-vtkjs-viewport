@@ -3,9 +3,9 @@ import vtkInteractorStyleTrackballCamera from 'vtk.js/Sources/Interaction/Style/
 import vtkCoordinate from 'vtk.js/Sources/Rendering/Core/Coordinate';
 import VTKAxis from './VTKAxis';
 
-function vtkInteractorStyle3DCrosshairs(publicAPI, model) {
+function vtkInteractorStyle2DCrosshairs(publicAPI, model) {
   //Set classname
-  model.classHierarchy.push('vtkInteractorStyle3DCrosshairs');
+  model.classHierarchy.push('vtkInteractorStyle2DCrosshairs');
 
   //get copy of default publicAPI
   const superAPI = Object.assign({}, publicAPI);
@@ -23,6 +23,12 @@ function vtkInteractorStyle3DCrosshairs(publicAPI, model) {
       api.genericRenderWindow.getRenderer()
     );
 
+    const mapper = api.actors[0].getMapper();
+    const slicingMode = mapper.getSlicingMode();
+    worldPos[slicingMode] = mapper.getBoundsForSlice(mapper.getSlice())[
+      slicingMode * 2
+    ];
+
     model.apis.forEach((api, i) => {
       const istyle = api.genericRenderWindow
         .getRenderWindow()
@@ -34,16 +40,22 @@ function vtkInteractorStyle3DCrosshairs(publicAPI, model) {
   };
 
   publicAPI.updateCrosshairs = worldPos => {
-    //console.log(worldPos)
+    const api = publicAPI.getApis()[publicAPI.getApiIndex()];
+
+    const mapper = api.actors[0].getMapper();
+    const slice = mapper.getSliceAtPosition(worldPos);
+    mapper.setSlice(slice);
+
+    const slicingMode = mapper.getSlicingMode();
+    worldPos[slicingMode] += 1;
+
     publicAPI.getCrosshairs().setPoint(...worldPos);
-    publicAPI
-      .getApis()
-      [publicAPI.getApiIndex()].genericRenderWindow.getRenderWindow()
-      .render();
+
+    api.genericRenderWindow.getRenderWindow().render();
   };
 
-  publicAPI.setActor = actor => {
-    superAPI.setActor(actor);
+  publicAPI.setImageActor = actor => {
+    superAPI.setImageActor(actor);
 
     const renderer = model.interactor.getCurrentRenderer();
 
@@ -62,6 +74,9 @@ function vtkInteractorStyle3DCrosshairs(publicAPI, model) {
       renderer.addActor(actor);
     });
 
+    console.log(crosshairs.actors);
+    console.log(renderer);
+
     publicAPI.setCrosshairs(crosshairs);
   };
 
@@ -72,11 +87,25 @@ function vtkInteractorStyle3DCrosshairs(publicAPI, model) {
     } else {
       //otherwise, move the crosshairs
       publicAPI.moveCrosshairs(callData);
+      model.movingCrosshairs = true;
     }
   };
 
-  publicAPI.handleRightButtonPress = superAPI.handleLeftButtonPress;
-  publicAPI.handleRightButtonRelease = superAPI.handleLeftButtonRelease;
+  publicAPI.handleLeftButtonRelease = callData => {
+    model.movingCrosshairs = false;
+
+    superAPI.handleLeftButtonRelease(callData);
+  };
+
+  publicAPI.handleMouseMove = callData => {
+    if (callData.shiftKey || callData.altKey || callData.controlKey) {
+      //If not just pressing the mouse button, do whatever trackball camera would normally do
+      superAPI.handleMouseMove(callData);
+    } else if (model.movingCrosshairs) {
+      //otherwise, move the crosshairs
+      publicAPI.moveCrosshairs(callData);
+    }
+  };
 }
 
 //Class defaults
@@ -89,15 +118,20 @@ export function extend(publicAPI, model, initialValues = {}) {
   vtkInteractorStyleTrackballCamera.extend(publicAPI, model, initialValues);
 
   //assign variables that can be set and gotten
-  macro.setGet(publicAPI, model, ['apis', 'apiIndex', 'crosshairs', 'actor']);
+  macro.setGet(publicAPI, model, [
+    'apis',
+    'apiIndex',
+    'crosshairs',
+    'imageActor',
+  ]);
 
   //add function
-  vtkInteractorStyle3DCrosshairs(publicAPI, model);
+  vtkInteractorStyle2DCrosshairs(publicAPI, model);
 }
 
 export const newInstance = macro.newInstance(
   extend,
-  'vtkInteractorStyle3DCrosshairs'
+  'vtkInteractorStyle2DCrosshairs'
 );
 
 export default { newInstance, extend };
