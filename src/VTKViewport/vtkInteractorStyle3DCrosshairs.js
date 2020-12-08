@@ -1,6 +1,8 @@
 import macro from 'vtk.js/Sources/macro';
 import vtkInteractorStyleTrackballCamera from 'vtk.js/Sources/Interaction/Style/InteractorStyleTrackballCamera';
 import vtkCoordinate from 'vtk.js/Sources/Rendering/Core/Coordinate';
+import vtkPointPicker from 'vtk.js/Sources/Rendering/Core/PointPicker';
+
 import VTKAxis from './VTKAxis';
 
 function vtkInteractorStyle3DCrosshairs(publicAPI, model) {
@@ -19,9 +21,49 @@ function vtkInteractorStyle3DCrosshairs(publicAPI, model) {
     coords.setCoordinateSystemToDisplay();
     coords.setValue(mousePos.x, mousePos.y, mousePos.z);
 
-    const worldPos = coords.getComputedWorldValue(
-      api.genericRenderWindow.getRenderer()
+    // const worldPos = coords.getComputedWorldValue(
+    //   api.genericRenderWindow.getRenderer()
+    // );
+
+    const actor = publicAPI.getActor();
+    const renderer = api.genericRenderWindow.getRenderer();
+    const screenPoint = [mousePos.x, mousePos.y, 0];
+
+    const picker = vtkPointPicker.newInstance();
+    picker.setPickFromList(1);
+    picker.initializePickList();
+    picker.addPickList(actor, renderer);
+
+    picker.pick(screenPoint, renderer);
+    const pointId = picker.getPointId();
+    console.log(picker.getPointId());
+    console.log(picker.getPickPosition());
+
+    console.log(actor);
+    console.log(actor.getMapper());
+    console.log(actor.getMapper().getInputData());
+    //console.log(actor.getMapper().getInputData().getPointCells(picker.getPointId()))
+    console.log(
+      actor
+        .getMapper()
+        .getInputData()
+        .getPoints()
     );
+    console.log(
+      actor
+        .getMapper()
+        .getInputData()
+        .getPoints()
+        .getPoint(picker.getPointId())
+    );
+
+    const worldPos = actor
+      .getMapper()
+      .getInputData()
+      .getPoints()
+      .getPoint(pointId);
+
+    //const worldPos = picker.getPickPosition()
 
     model.apis.forEach((api, i) => {
       const istyle = api.genericRenderWindow
@@ -34,7 +76,6 @@ function vtkInteractorStyle3DCrosshairs(publicAPI, model) {
   };
 
   publicAPI.updateCrosshairs = worldPos => {
-    //console.log(worldPos)
     publicAPI.getCrosshairs().setPoint(...worldPos);
     publicAPI
       .getApis()
@@ -43,9 +84,13 @@ function vtkInteractorStyle3DCrosshairs(publicAPI, model) {
   };
 
   publicAPI.setActor = actor => {
+    actor.getProperty().setOpacity(0.5);
     superAPI.setActor(actor);
 
     const renderer = model.interactor.getCurrentRenderer();
+
+    console.log(renderer);
+    console.log(renderer.getActiveCamera());
 
     const bounds = actor.getBounds();
     const width =
@@ -72,6 +117,26 @@ function vtkInteractorStyle3DCrosshairs(publicAPI, model) {
     } else {
       //otherwise, move the crosshairs
       publicAPI.moveCrosshairs(callData);
+      model.movingCrosshairs = true;
+    }
+  };
+
+  publicAPI.handleLeftButtonRelease = callData => {
+    model.movingCrosshairs = false;
+
+    superAPI.handleLeftButtonRelease(callData);
+  };
+
+  publicAPI.handleMouseMove = callData => {
+    if (
+      !(callData.shiftKey || callData.altKey || callData.controlKey) &&
+      model.movingCrosshairs
+    ) {
+      //otherwise, move the crosshairs
+      publicAPI.moveCrosshairs(callData);
+    } else {
+      //If not just pressing the mouse button, do whatever trackball camera would normally do
+      superAPI.handleMouseMove(callData);
     }
   };
 

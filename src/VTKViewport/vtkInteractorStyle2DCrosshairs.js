@@ -1,6 +1,7 @@
 import macro from 'vtk.js/Sources/macro';
 import vtkInteractorStyleTrackballCamera from 'vtk.js/Sources/Interaction/Style/InteractorStyleTrackballCamera';
 import vtkCoordinate from 'vtk.js/Sources/Rendering/Core/Coordinate';
+import vtkPointPicker from 'vtk.js/Sources/Rendering/Core/PointPicker';
 import VTKAxis from './VTKAxis';
 
 function vtkInteractorStyle2DCrosshairs(publicAPI, model) {
@@ -40,16 +41,18 @@ function vtkInteractorStyle2DCrosshairs(publicAPI, model) {
   };
 
   publicAPI.updateCrosshairs = worldPos => {
+    const pos = [...worldPos];
+
     const api = publicAPI.getApis()[publicAPI.getApiIndex()];
 
     const mapper = api.actors[0].getMapper();
-    const slice = mapper.getSliceAtPosition(worldPos);
+    const slice = mapper.getSliceAtPosition(pos);
     mapper.setSlice(slice);
 
     const slicingMode = mapper.getSlicingMode();
-    worldPos[slicingMode] += 1;
+    pos[slicingMode] += 1;
 
-    publicAPI.getCrosshairs().setPoint(...worldPos);
+    publicAPI.getCrosshairs().setPoint(...pos);
 
     api.genericRenderWindow.getRenderWindow().render();
   };
@@ -69,13 +72,14 @@ function vtkInteractorStyle2DCrosshairs(publicAPI, model) {
 
     const pos = actor.getCenter();
 
+    const mapper = actor.getMapper();
+    const slicingMode = mapper.getSlicingMode();
+    pos[slicingMode] += 1;
+
     const crosshairs = new VTKAxis(...pos, width);
     crosshairs.actors.forEach((actor, i) => {
       renderer.addActor(actor);
     });
-
-    console.log(crosshairs.actors);
-    console.log(renderer);
 
     publicAPI.setCrosshairs(crosshairs);
   };
@@ -98,14 +102,53 @@ function vtkInteractorStyle2DCrosshairs(publicAPI, model) {
   };
 
   publicAPI.handleMouseMove = callData => {
-    if (callData.shiftKey || callData.altKey || callData.controlKey) {
-      //If not just pressing the mouse button, do whatever trackball camera would normally do
-      superAPI.handleMouseMove(callData);
-    } else if (model.movingCrosshairs) {
+    if (
+      !(callData.shiftKey || callData.altKey || callData.controlKey) &&
+      model.movingCrosshairs
+    ) {
       //otherwise, move the crosshairs
       publicAPI.moveCrosshairs(callData);
+    } else {
+      //If not just pressing the mouse button, do whatever trackball camera would normally do
+      superAPI.handleMouseMove(callData);
     }
   };
+
+  publicAPI.handleMouseWheel = callData => {
+    const mapper = publicAPI.getImageActor().getMapper();
+    const slice = mapper.getSlice() + callData.spinY;
+
+    mapper.setSlice(slice);
+
+    const worldPos = [
+      publicAPI.getCrosshairs().x,
+      publicAPI.getCrosshairs().y,
+      publicAPI.getCrosshairs().z,
+    ];
+    console.log([
+      publicAPI.getCrosshairs().x,
+      publicAPI.getCrosshairs().y,
+      publicAPI.getCrosshairs().z,
+    ]);
+
+    const slicingMode = mapper.getSlicingMode();
+    worldPos[slicingMode] = mapper.getBoundsForSlice(mapper.getSlice())[
+      slicingMode * 2
+    ];
+    console.log(worldPos);
+
+    model.apis.forEach((api, i) => {
+      const istyle = api.genericRenderWindow
+        .getRenderWindow()
+        .getInteractor()
+        .getInteractorStyle();
+
+      istyle.updateCrosshairs(worldPos);
+    });
+  };
+
+  publicAPI.handleStartMouseWheel = () => {};
+  publicAPI.handleEndMouseWheel = () => {};
 }
 
 //Class defaults
