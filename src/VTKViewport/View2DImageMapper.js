@@ -111,7 +111,7 @@ export default class View2DImageMapper extends Component {
     }
 
     this.cutActors = [];
-    const { stlPolyData, actor } = this.props;
+    const { stlPolyData, actor, colors } = this.props;
     if (!stlPolyData || stlPolyData.length === 0) {
       return;
     }
@@ -135,7 +135,7 @@ export default class View2DImageMapper extends Component {
           break;
       }
 
-      this.props.stlPolyData.forEach((polyData, i) => {
+      stlPolyData.forEach((polyData, i) => {
         const plane = vtkPlane.newInstance();
         plane.setOrigin(sliceCenter);
         plane.setNormal(...normal);
@@ -155,8 +155,8 @@ export default class View2DImageMapper extends Component {
         const cutProperty = cutActor.getProperty();
         cutProperty.setRepresentation(vtkProperty.Representation.SURFACE);
         cutProperty.setLighting(false);
-        cutProperty.setColor(...this.props.colors[i].map(c => c / 255));
-        cutProperty.setOpacity(this.props.colors[i][3] / 255);
+        cutProperty.setColor(...colors[i]);
+        cutProperty.setOpacity(colors[i][3]);
         this.cutActors.push(cutActor);
       });
       this.cutActorsCache[sliceMode][slice] = [...this.cutActors];
