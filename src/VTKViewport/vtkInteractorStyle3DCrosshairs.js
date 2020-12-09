@@ -2,6 +2,9 @@ import macro from 'vtk.js/Sources/macro';
 import vtkInteractorStyleTrackballCamera from 'vtk.js/Sources/Interaction/Style/InteractorStyleTrackballCamera';
 import vtkCoordinate from 'vtk.js/Sources/Rendering/Core/Coordinate';
 import vtkPointPicker from 'vtk.js/Sources/Rendering/Core/PointPicker';
+import vtkImageMarchingSquares from 'vtk.js/Sources/Filters/General/ImageMarchingCubes';
+import vtkImageMapper from 'vtk.js/Sources/Rendering/Core/ImageMapper';
+import vtkActor from 'vtk.js/Sources/Rendering/Core/Actor';
 
 import VTKAxis from './VTKAxis';
 
@@ -108,6 +111,12 @@ function vtkInteractorStyle3DCrosshairs(publicAPI, model) {
     });
 
     publicAPI.setCrosshairs(crosshairs);
+
+    model.apis.forEach((api, i) => {
+      if (api.type == 'VIEW2D') {
+        renderer.addActor(api.actors[0]);
+      }
+    });
   };
 
   publicAPI.handleLeftButtonPress = callData => {
