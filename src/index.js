@@ -1,13 +1,12 @@
 import View2D from './VTKViewport/View2D';
 import View2DImageMapper from './VTKViewport/View2DImageMapper';
 import View3D from './VTKViewport/View3D';
-import View3DMarchingCubes from './VTKViewport/View3DMarchingCubes';
+import View3DSurfaceMC from './VTKViewport/View3DSurfaceMC';
 import vtkInteractorStyleMPRSlice from './VTKViewport/vtkInteractorStyleMPRSlice.js';
 import vtkInteractorStyleMPRWindowLevel from './VTKViewport/vtkInteractorStyleMPRWindowLevel.js';
 import vtkInteractorStyleMPRCrosshairs from './VTKViewport/vtkInteractorStyleMPRCrosshairs.js';
 import vtkInteractorStyleRotatableMPRCrosshairs from './VTKViewport/vtkInteractorStyleRotatableMPRCrosshairs.js';
 import vtkInteractorStyleCrosshairsImageMapper from './VTKViewport/vtkInteractorStyleCrosshairsImageMapper.js';
-import vtkInteractorStyleCrosshairsMarchingCubes from './VTKViewport/vtkInteractorStyleCrosshairsMarchingCubes.js';
 import vtkInteractorStyleMPRRotate from './VTKViewport/vtkInteractorStyleMPRRotate.js';
 import vtkInteractorStyleImageWindowLevel from './VTKViewport/vtkInteractorStyleImageWindowLevel.js';
 import vtkInteractorStyleImagePanZoom from './VTKViewport/vtkInteractorStyleImagePanZoom.js';
@@ -29,7 +28,7 @@ export {
   View2D,
   View2DImageMapper,
   View3D,
-  View3DMarchingCubes,
+  View3DSurfaceMC,
   ViewportOverlay,
   ViewportData,
   VTKAxis,
@@ -39,7 +38,6 @@ export {
   vtkInteractorStyleMPRCrosshairs,
   vtkInteractorStyleRotatableMPRCrosshairs,
   vtkInteractorStyleCrosshairsImageMapper,
-  vtkInteractorStyleCrosshairsMarchingCubes,
   vtkInteractorStyleMPRRotate,
   vtkInteractorStyleMPRSlice,
   vtkInteractorStyleImageWindowLevel,

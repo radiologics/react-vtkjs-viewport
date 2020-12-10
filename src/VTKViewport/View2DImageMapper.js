@@ -20,7 +20,7 @@ import vtkTubeFilter from 'vtk.js/Sources/Filters/General/TubeFilter';
 export default class View2DImageMapper extends Component {
   static propTypes = {
     actor: PropTypes.object,
-    stlPolyData: PropTypes.array,
+    polyData: PropTypes.array,
     colors: PropTypes.array,
     labelmapActors: PropTypes.object,
     dataDetails: PropTypes.object,
@@ -30,7 +30,7 @@ export default class View2DImageMapper extends Component {
     orientationName: PropTypes.string,
     labelmapRenderingOptions: PropTypes.object,
     planeMap: PropTypes.object,
-    onUpdateSTLConfig: PropTypes.func,
+    onUpdateSurfaceConfig: PropTypes.func,
   };
 
   constructor(props) {
@@ -46,9 +46,9 @@ export default class View2DImageMapper extends Component {
     };
     this.interactorStyleSubs = [];
     let radius, nsides;
-    if (window.stlSettings) {
-      radius = window.stlSettings.radius;
-      nsides = window.stlSettings.nsides;
+    if (window.surfaceSettings) {
+      radius = window.surfaceSettings.radius;
+      nsides = window.surfaceSettings.nsides;
     }
     this.state = {
       voi: this.getVOI(props.actor),
@@ -111,8 +111,8 @@ export default class View2DImageMapper extends Component {
     }
 
     this.cutActors = [];
-    const { stlPolyData, actor, colors } = this.props;
-    if (!stlPolyData || stlPolyData.length === 0) {
+    const { polyData, actor, colors } = this.props;
+    if (!polyData || polyData.length === 0) {
       return;
     }
     const { sliceMode, slice, radius, nsides } = this.state;
@@ -135,7 +135,7 @@ export default class View2DImageMapper extends Component {
           break;
       }
 
-      stlPolyData.forEach((polyData, i) => {
+      polyData.forEach((polyData, i) => {
         const plane = vtkPlane.newInstance();
         plane.setOrigin(sliceCenter);
         plane.setNormal(...normal);
@@ -340,8 +340,8 @@ export default class View2DImageMapper extends Component {
     const boundUpdateSegmentationConfig = this.updateSegmentationConfig.bind(
       this
     );
-    const boundUpdateSTLConfig = this.updateSTLConfig.bind(this);
-    const boundUpdateSTLParams = this.updateSTLParams.bind(this);
+    const boundUpdateSurfaceConfig = this.updateSurfaceConfig.bind(this);
+    const boundUpdateSurfaceParams = this.updateSurfaceParams.bind(this);
     const boundSetInterpolationType = this.setInterpolationType.bind(this);
     const boundSetFreezeSlice = this.setFreezeSlice.bind(this);
 
@@ -373,8 +373,8 @@ export default class View2DImageMapper extends Component {
         getSliceNormal: boundGetSliceNormal,
         requestNewSegmentation: boundRequestNewSegmentation,
         updateSegmentationConfig: boundUpdateSegmentationConfig,
-        updateSTLConfig: boundUpdateSTLConfig,
-        updateSTLParams: boundUpdateSTLParams,
+        updateSurfaceConfig: boundUpdateSurfaceConfig,
+        updateSurfaceParams: boundUpdateSurfaceParams,
         setInterpolationType: boundSetInterpolationType,
         setCamera: boundSetCamera,
         get: boundGetApiProperty,
@@ -389,7 +389,7 @@ export default class View2DImageMapper extends Component {
 
   componentDidUpdate(prevProps) {
     const { slice, sliceMode } = this.state;
-    const { actor, labelmapActors, stlPolyData, colors } = this.props;
+    const { actor, labelmapActors, polyData, colors } = this.props;
     let updated = false;
     const renderer = this.renderer;
     if (actor !== prevProps.actor) {
@@ -413,8 +413,8 @@ export default class View2DImageMapper extends Component {
       updated = true;
     }
     if (
-      stlPolyData !== prevProps.stlPolyData &&
-      (stlPolyData.length > 0 || prevProps.stlPolyData.length > 0)
+      polyData !== prevProps.polyData &&
+      (polyData.length > 0 || prevProps.polyData.length > 0)
     ) {
       updated = true;
     }
@@ -469,12 +469,12 @@ export default class View2DImageMapper extends Component {
     this.props.labelmapRenderingOptions.onUpdateSegmentationConfig();
   }
 
-  updateSTLConfig() {
-    this.props.onUpdateSTLConfig();
+  updateSurfaceConfig() {
+    this.props.onUpdateSurfaceConfig();
   }
 
-  updateSTLParams() {
-    const { radius, nsides } = window.stlSettings;
+  updateSurfaceParams() {
+    const { radius, nsides } = window.surfaceSettings;
     this.setState(
       {
         radius,

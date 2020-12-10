@@ -8,22 +8,22 @@ import vtkAnnotatedCubeActor from 'vtk.js/Sources/Rendering/Core/AnnotatedCubeAc
 
 import { createSub } from '../lib/createSub.js';
 
-const stlKey = 'STL';
+const surfaceKey = 'Surf';
 const mcKey = 'MC';
 const displayName = {};
-displayName[stlKey] = 'STL surface mesh';
+displayName[surfaceKey] = 'Surface mesh';
 displayName[mcKey] = 'DICOM-SEG marching cubes';
 
 export default class View3DMarchingCubes extends Component {
   static propTypes = {
     marchingCubesActors: PropTypes.array,
-    stlActors: PropTypes.array,
+    surfaceActors: PropTypes.array,
     onCreated: PropTypes.func,
     onDestroyed: PropTypes.func,
     dataDetails: PropTypes.object,
     planeMap: PropTypes.object,
     labelmapRenderingOptions: PropTypes.object,
-    onUpdateSTLConfig: PropTypes.func,
+    onUpdateSurfaceConfig: PropTypes.func,
   };
 
   constructor(props) {
@@ -97,9 +97,9 @@ export default class View3DMarchingCubes extends Component {
   setActorMapAndDisplay() {
     this.actorMap = {};
     let defaultDisplay;
-    if (this.props.stlActors && this.props.stlActors.length) {
-      this.actorMap[stlKey] = this.props.stlActors;
-      defaultDisplay = stlKey;
+    if (this.props.surfaceActors && this.props.surfaceActors.length) {
+      this.actorMap[surfaceKey] = this.props.surfaceActors;
+      defaultDisplay = surfaceKey;
     }
     if (
       this.props.marchingCubesActors &&
@@ -232,7 +232,7 @@ export default class View3DMarchingCubes extends Component {
     const boundUpdateSegmentationConfig = this.updateSegmentationConfig.bind(
       this
     );
-    const boundUpdateSTLConfig = this.updateSTLConfig.bind(this);
+    const boundUpdateSurfaceConfig = this.updateSurfaceConfig.bind(this);
     const boundUpdateImage = this.updateImage.bind(this);
 
     this.svgWidgets = {};
@@ -251,14 +251,14 @@ export default class View3DMarchingCubes extends Component {
         setInteractorStyle: boundSetInteractorStyle,
         container: this.container.current,
         marchingCubesActors: this.props.marchingCubesActors,
-        stlActors: this.props.stlActors,
+        surfaceActors: this.props.surfaceActors,
         svgWidgets: this.svgWidgets,
         get: boundGetApiProperty,
         set: boundSetApiProperty,
         requestNewSegmentation: boundRequestNewSegmentation,
         updateImage: boundUpdateImage,
         updateSegmentationConfig: boundUpdateSegmentationConfig,
-        updateSTLConfig: boundUpdateSTLConfig,
+        updateSurfaceConfig: boundUpdateSurfaceConfig,
         type: 'VIEW3D',
         _component: this, // Backdoor still open for now whilst the API isn't as mature as View2D.
       };
@@ -269,9 +269,9 @@ export default class View3DMarchingCubes extends Component {
 
   componentDidUpdate(prevProps) {
     if (
-      (prevProps.stlActors !== this.props.stlActors &&
-        ((prevProps.stlActors && prevProps.stlActors.length > 0) ||
-          (this.props.stlActors && this.props.stlActors.length > 0))) ||
+      (prevProps.surfaceActors !== this.props.surfaceActors &&
+        ((prevProps.surfaceActors && prevProps.surfaceActors.length > 0) ||
+          (this.props.surfaceActors && this.props.surfaceActors.length > 0))) ||
       (prevProps.marchingCubesActors !== this.props.marchingCubesActors &&
         ((prevProps.marchingCubesActors &&
           prevProps.marchingCubesActors.length > 0) ||
@@ -373,8 +373,8 @@ export default class View3DMarchingCubes extends Component {
     this.props.labelmapRenderingOptions.onUpdateSegmentationConfig();
   }
 
-  updateSTLConfig() {
-    this.props.onUpdateSTLConfig();
+  updateSurfaceConfig() {
+    this.props.onUpdateSurfaceConfig();
   }
 
   updateImage() {
