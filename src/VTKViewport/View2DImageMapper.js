@@ -93,10 +93,12 @@ export default class View2DImageMapper extends Component {
     // Update slices of labelmaps when source data slice changed
     imageMapper.onModified(() => {
       const slice = imageMapper.getSlice();
-      this.setState({
-        slice,
-      });
-      this.replaceCutActors();
+      this.setState(
+        {
+          slice,
+        },
+        this.replaceCutActors
+      );
       // if (labelmapActorsArray) {
       //   labelmapActorsArray.forEach(actor => {
       //     actor.getMapper().setSlice(slice);
@@ -310,13 +312,22 @@ export default class View2DImageMapper extends Component {
     // set 2D camera position
     this.setCamera(sliceMode, flipped, viewUp, renderer, actorVTKImageData);
 
-    this.setupActors(actor, labelmapActorsArray, imageMapper, slice, sliceMode);
-
-    this.setState({
-      slice,
-      neswMetadata,
-      sliceMode,
-    });
+    this.setState(
+      {
+        slice,
+        neswMetadata,
+        sliceMode,
+      },
+      () => {
+        this.setupActors(
+          actor,
+          labelmapActorsArray,
+          imageMapper,
+          slice,
+          sliceMode
+        );
+      }
+    );
 
     // TODO: Not sure why this is necessary to force the initial draw
     renderer.resetCamera();
