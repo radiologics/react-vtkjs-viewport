@@ -57,13 +57,25 @@ class Axis {
     this.y = y;
     this.z = z;
 
-    this.lines[0].setPoint1([x - this.width, y, z]);
-    this.lines[1].setPoint1([x, y - this.width, z]);
-    this.lines[2].setPoint1([x, y, z - this.width]);
+    this.lines[0].setPoint1([this.x - this.width, this.y, this.z]);
+    this.lines[1].setPoint1([this.x, this.y - this.width, this.z]);
+    this.lines[2].setPoint1([this.x, this.y, this.z - this.width]);
 
-    this.lines[0].setPoint2([x + this.width, y, z]);
-    this.lines[1].setPoint2([x, y + this.width, z]);
-    this.lines[2].setPoint2([x, y, z + this.width]);
+    this.lines[0].setPoint2([this.x + this.width, this.y, this.z]);
+    this.lines[1].setPoint2([this.x, this.y + this.width, this.z]);
+    this.lines[2].setPoint2([this.x, this.y, this.z + this.width]);
+  }
+
+  setWidth(width) {
+    this.width = width;
+
+    this.lines[0].setPoint1([this.x - this.width, this.y, this.z]);
+    this.lines[1].setPoint1([this.x, this.y - this.width, this.z]);
+    this.lines[2].setPoint1([this.x, this.y, this.z - this.width]);
+
+    this.lines[0].setPoint2([this.x + this.width, this.y, this.z]);
+    this.lines[1].setPoint2([this.x, this.y + this.width, this.z]);
+    this.lines[2].setPoint2([this.x, this.y, this.z + this.width]);
   }
 }
 

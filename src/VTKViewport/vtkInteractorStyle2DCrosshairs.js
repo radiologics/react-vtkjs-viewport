@@ -77,12 +77,19 @@ function vtkInteractorStyle2DCrosshairs(publicAPI, model) {
     pos[slicingMode] += 1;
 
     const crosshairs = new VTKAxis(...pos, width);
-    crosshairs.actors.forEach((actor, i) => {
-      renderer.addActor(actor);
-    });
+    // crosshairs.actors.forEach((actor, i) => {
+    //   renderer.addActor(actor);
+    // });
 
     publicAPI.setCrosshairs(crosshairs);
   };
+
+  // publicAPI.setActors = actors => {
+  //   actors.forEach((actor, i) => {
+  //     actor.getProperty().setOpacity(0.5);
+  //   })
+  //   superAPI.setActors(actors);
+  // }
 
   publicAPI.handleLeftButtonPress = callData => {
     if (callData.shiftKey || callData.altKey || callData.controlKey) {
@@ -125,17 +132,11 @@ function vtkInteractorStyle2DCrosshairs(publicAPI, model) {
       publicAPI.getCrosshairs().y,
       publicAPI.getCrosshairs().z,
     ];
-    console.log([
-      publicAPI.getCrosshairs().x,
-      publicAPI.getCrosshairs().y,
-      publicAPI.getCrosshairs().z,
-    ]);
 
     const slicingMode = mapper.getSlicingMode();
     worldPos[slicingMode] = mapper.getBoundsForSlice(mapper.getSlice())[
       slicingMode * 2
     ];
-    console.log(worldPos);
 
     model.apis.forEach((api, i) => {
       const istyle = api.genericRenderWindow
@@ -149,6 +150,21 @@ function vtkInteractorStyle2DCrosshairs(publicAPI, model) {
 
   publicAPI.handleStartMouseWheel = () => {};
   publicAPI.handleEndMouseWheel = () => {};
+
+  publicAPI.toggleCrosshairs = () => {
+    const crosshairs = publicAPI.getCrosshairs();
+    const renderer = model.interactor.getCurrentRenderer();
+
+    crosshairs.actors.forEach((actor, i) => {
+      if (renderer.getActors().includes(actor)) {
+        renderer.removeActor(actor);
+      } else {
+        renderer.addActor(actor);
+      }
+    });
+
+    renderer.getRenderWindow().render();
+  };
 }
 
 //Class defaults
@@ -166,6 +182,7 @@ export function extend(publicAPI, model, initialValues = {}) {
     'apiIndex',
     'crosshairs',
     'imageActor',
+    'actors',
   ]);
 
   //add function

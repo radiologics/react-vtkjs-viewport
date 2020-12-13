@@ -15,6 +15,9 @@ function vtkInteractorStyle3DCrosshairs(publicAPI, model) {
   //get copy of default publicAPI
   const superAPI = Object.assign({}, publicAPI);
 
+  const crosshairs = new VTKAxis(0, 0, 0, 0);
+  publicAPI.setCrosshairs(crosshairs);
+
   publicAPI.moveCrosshairs = callData => {
     const api = model.apis[model.apiIndex];
 
@@ -24,49 +27,26 @@ function vtkInteractorStyle3DCrosshairs(publicAPI, model) {
     coords.setCoordinateSystemToDisplay();
     coords.setValue(mousePos.x, mousePos.y, mousePos.z);
 
-    // const worldPos = coords.getComputedWorldValue(
-    //   api.genericRenderWindow.getRenderer()
-    // );
-
-    const actor = publicAPI.getActor();
+    const actors = publicAPI.getActors();
     const renderer = api.genericRenderWindow.getRenderer();
     const screenPoint = [mousePos.x, mousePos.y, 0];
 
     const picker = vtkPointPicker.newInstance();
-    picker.setPickFromList(1);
-    picker.initializePickList();
-    picker.addPickList(actor, renderer);
+    picker.setPickFromList(false);
+    // picker.initializePickList();
+    // actors.forEach((actor, i) => {
+    //   picker.addPickList(actor, renderer);
+    // });
 
-    picker.pick(screenPoint, renderer);
+    const picked = picker.pick(screenPoint, renderer);
     const pointId = picker.getPointId();
-    console.log(picker.getPointId());
-    console.log(picker.getPickPosition());
 
-    console.log(actor);
-    console.log(actor.getMapper());
-    console.log(actor.getMapper().getInputData());
-    //console.log(actor.getMapper().getInputData().getPointCells(picker.getPointId()))
-    console.log(
-      actor
-        .getMapper()
-        .getInputData()
-        .getPoints()
-    );
-    console.log(
-      actor
-        .getMapper()
-        .getInputData()
-        .getPoints()
-        .getPoint(picker.getPointId())
-    );
-
-    const worldPos = actor
+    const worldPos = picker
+      .getActors()[0]
       .getMapper()
       .getInputData()
       .getPoints()
       .getPoint(pointId);
-
-    //const worldPos = picker.getPickPosition()
 
     model.apis.forEach((api, i) => {
       const istyle = api.genericRenderWindow
@@ -92,9 +72,6 @@ function vtkInteractorStyle3DCrosshairs(publicAPI, model) {
 
     const renderer = model.interactor.getCurrentRenderer();
 
-    console.log(renderer);
-    console.log(renderer.getActiveCamera());
-
     const bounds = actor.getBounds();
     const width =
       Math.max(
@@ -104,17 +81,25 @@ function vtkInteractorStyle3DCrosshairs(publicAPI, model) {
       ) * 2;
 
     const pos = actor.getCenter();
+    const crosshairs = publicAPI.getCrosshairs();
+    crosshairs.actors.forEach(renderer.addActor);
+    crosshairs.setPoint(...pos);
+    crosshairs.setWidth(width);
+  };
 
-    const crosshairs = new VTKAxis(...pos, width);
-    crosshairs.actors.forEach((actor, i) => {
-      renderer.addActor(actor);
+  publicAPI.setActors = actors => {
+    actors.forEach((actor, i) => {
+      actor.getProperty().setOpacity(0.5);
     });
+    superAPI.setActors(actors);
+  };
 
-    publicAPI.setCrosshairs(crosshairs);
+  publicAPI.addCrosshairSlices = apis => {
+    const renderer = model.interactor.getCurrentRenderer();
 
-    model.apis.forEach((api, i) => {
+    apis.forEach((api, i) => {
       if (api.type == 'VIEW2D') {
-        renderer.addActor(api.actors[0]);
+        api.actors.forEach(renderer.addActor);
       }
     });
   };
@@ -149,6 +134,38 @@ function vtkInteractorStyle3DCrosshairs(publicAPI, model) {
     }
   };
 
+  publicAPI.toggleCrosshairs = () => {
+    const crosshairs = publicAPI.getCrosshairs();
+    const renderer = model.interactor.getCurrentRenderer();
+
+    crosshairs.actors.forEach((actor, i) => {
+      if (renderer.getActors().includes(actor)) {
+        renderer.removeActor(actor);
+      } else {
+        renderer.addActor(actor);
+      }
+    });
+
+    renderer.getRenderWindow().render();
+  };
+
+  publicAPI.toggleCrosshairSlices = () => {
+    const renderer = model.interactor.getCurrentRenderer();
+
+    model.apis.forEach((api, i) => {
+      if (api.type == 'VIEW2D') {
+        const actor = api.actors[0];
+        if (renderer.getActors().includes(actor)) {
+          renderer.removeActor(actor);
+        } else {
+          renderer.addActor(actor);
+        }
+      }
+    });
+
+    renderer.getRenderWindow().render();
+  };
+
   publicAPI.handleRightButtonPress = superAPI.handleLeftButtonPress;
   publicAPI.handleRightButtonRelease = superAPI.handleLeftButtonRelease;
 }
@@ -163,7 +180,13 @@ export function extend(publicAPI, model, initialValues = {}) {
   vtkInteractorStyleTrackballCamera.extend(publicAPI, model, initialValues);
 
   //assign variables that can be set and gotten
-  macro.setGet(publicAPI, model, ['apis', 'apiIndex', 'crosshairs', 'actor']);
+  macro.setGet(publicAPI, model, [
+    'apis',
+    'apiIndex',
+    'crosshairs',
+    'actor',
+    'actors',
+  ]);
 
   //add function
   vtkInteractorStyle3DCrosshairs(publicAPI, model);

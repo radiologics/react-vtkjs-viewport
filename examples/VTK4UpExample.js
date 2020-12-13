@@ -32,6 +32,7 @@ const segmentationModule = cornerstoneTools.getModule('segmentation');
 // SEG 	1.2.276.0.7230010.3.1.3.296485376.8.1542816659.201008
 
 const segURL = `${window.location.origin}/examples/dicoms/brainSeg.dcm`;
+const seg2URL = `${window.location.origin}/examples/dicoms/rightEyeSeg.dcm`
 
 // const segURL =
 //   'https://server.dcmjs.org/dcm4chee-arc/aets/DCM4CHEE/rs/studies/1.3.12.2.1107.5.2.32.35162.30000015050317233592200000046/series/1.2.276.0.7230010.3.1.3.296485376.8.1542816659.201008/instances/1.2.276.0.7230010.3.1.4.296485376.8.1542816659.201009';
@@ -62,7 +63,7 @@ function loadDataset(images) {
   return {vtkImageData: imageData, dimensions: [width, height, depth]}
 }
 
-function makeLabelMapColorTransferFunction(lablemapColorLUT) {
+function makeLabelMapColorTransferFunction(lablemapColorLUT, color) {
   const labelMap = {
     cfun: vtkColorTransferFunction.newInstance(),
     ofun: vtkPiecewiseFunction.newInstance(),
@@ -72,12 +73,12 @@ function makeLabelMapColorTransferFunction(lablemapColorLUT) {
   labelMap.ofun.addPointLong(0, 0, 0.5, 1.0);
   labelMap.ofun.addPointLong(1, 1.0, 0.5, 1.0);
 
-  buildColorTransferFunction(labelMap, lablemapColorLUT, 1.0);
+  buildColorTransferFunction(labelMap, lablemapColorLUT, 1.0, color);
 
   return labelMap;
 }
 
-const buildColorTransferFunction = (labelmap, colorLUT, opacity) => {
+const buildColorTransferFunction = (labelmap, colorLUT, opacity, color) => {
   // TODO -> It seems to crash if you set it higher than 256??
   const numColors = Math.min(256, colorLUT.length);
 
@@ -98,7 +99,7 @@ const buildColorTransferFunction = (labelmap, colorLUT, opacity) => {
   //   labelmap.ofun.addPointLong(i, segmentOpacity, 0.5, 1.0);
   // }
 
-  labelmap.cfun.addRGBPoint(1, 1, 0, 0); // label '1' will be red
+  labelmap.cfun.addRGBPoint(1, ...color); // label '1' will be red
   labelmap.ofun.addPointLong(1, 1.0, 0.5, 1.0); // All labels full opacity
 };
 
@@ -231,6 +232,154 @@ async function fetchSegArrayBuffer(url) {
   });
 }
 
+function generate4Up(mrImageDataObject, labelmapDataObject, labelmapColorLUT, color=[1, 0, 0]){
+  const mrImageData = mrImageDataObject.vtkImageData
+  const direction = mrImageData.getDirection();
+  const planes = [
+    direction.slice(0, 3),
+    direction.slice(3, 6),
+    direction.slice(6, 9),
+  ];
+  const orient = planes.map(arr =>
+    arr.findIndex(i => Math.abs(Math.round(i)) === 1)
+  );
+  const planeMap = {
+    Sagittal: {
+      plane: orient.indexOf(0),
+    },
+    Coronal: {
+      plane: orient.indexOf(1),
+    },
+    Axial: {
+      plane: orient.indexOf(2),
+    },
+  };
+  planeMap.Sagittal.flip = planes[planeMap.Sagittal.plane].some(
+    i => Math.round(i) === -1
+  );
+  planeMap.Coronal.flip = planes[planeMap.Coronal.plane].some(
+    i => Math.round(i) === -1
+  );
+  planeMap.Axial.flip = planes[planeMap.Axial.plane].some(
+    i => Math.round(i) === -1
+  );
+
+  const range = mrImageData
+  .getPointData()
+  .getScalars()
+  .getRange();
+
+  const windowWidth = Math.abs(range[1] - range[0]);
+  const windowLevel = range[0] + windowWidth / 2;
+
+  const imageActors = [];
+
+  for (let i = 0; i < 3; i++) {
+    const imageMapper = vtkImageMapper.newInstance();
+    const imageActor = vtkImageSlice.newInstance();
+
+    imageMapper.setInputData(mrImageData);
+    imageActor.setMapper(imageMapper);
+
+    imageActor.getProperty().setColorWindow(windowWidth);
+    imageActor.getProperty().setColorLevel(windowLevel);
+
+    imageActors.push(imageActor);
+  }
+
+  // SEG
+
+  const segRange = labelmapDataObject
+  .getPointData()
+  .getScalars()
+  .getRange();
+
+  const segMapper = vtkMapper.newInstance();
+  const segActor = vtkActor.newInstance();
+
+  const labelmapTransferFunctions = makeLabelMapColorTransferFunction(
+    labelmapColorLUT,
+    color
+  );
+
+  const marchingCube = vtkImageMarchingCubes.newInstance({
+    contourValue: (segRange[0] + segRange[1]) / 3,
+    computeNormals: true,
+    mergePoints: true,
+  });
+  marchingCube.setInputData(labelmapDataObject);
+  segActor.getProperty().setColor(...color);
+  segActor.setMapper(segMapper);
+  segMapper.setInputConnection(marchingCube.getOutputPort());
+
+  // labelmapActors for 2D views
+
+  const outline = vtkImageOutlineFilter.newInstance();
+  // opacity function for the outline filter
+  const labelmapOFun = vtkPiecewiseFunction.newInstance();
+
+  labelmapOFun.addPoint(0, 0); // our background value, 0, will be invisible
+  labelmapOFun.addPoint(0.5, 1);
+  labelmapOFun.addPoint(1, 1);
+
+  const labelmapActors = [];
+
+  outline.setInputData(labelmapDataObject);
+  outline.setSlicingMode(2);
+
+  for (let i = 0; i < 3; i++) {
+    const labelmapMapper = vtkImageMapper.newInstance();
+    const labelmapActor = vtkImageSlice.newInstance();
+
+    labelmapMapper.setInputData(outline.getOutputData());
+    labelmapActor.setMapper(labelmapMapper);
+    labelmapActor.getProperty().setInterpolationType(0);
+
+    labelmapActor
+    .getProperty()
+    .setRGBTransferFunction(labelmapTransferFunctions.cfun);
+
+    labelmapActor.getProperty().setScalarOpacity(labelmapOFun);
+
+    labelmapActors.push(labelmapActor);
+  }
+
+  const labelmapFillOFun = vtkPiecewiseFunction.newInstance();
+
+  labelmapFillOFun.addPoint(0, 0); // our background value, 0, will be invisible
+  labelmapFillOFun.addPoint(0.5, 0.1);
+  labelmapFillOFun.addPoint(1, 0.2);
+
+  const labelmapFillActors = [];
+
+  for (let i = 0; i < 3; i++) {
+    const labelmapFillMapper = vtkImageMapper.newInstance();
+    const labelmapFillActor = vtkImageSlice.newInstance();
+
+    labelmapFillMapper.setInputData(labelmapDataObject);
+    labelmapFillActor.setMapper(labelmapFillMapper);
+    labelmapFillActor.getProperty().setInterpolationType(0);
+
+    labelmapFillActor
+    .getProperty()
+    .setRGBTransferFunction(labelmapTransferFunctions.cfun);
+
+    labelmapFillActor.getProperty().setScalarOpacity(labelmapFillOFun);
+
+    labelmapFillActors.push(labelmapFillActor);
+  }
+
+  return {
+    imageActors,
+    labelmapActors,
+    labelmapFillActors,
+    segActor,
+    labelmapDataObject,
+    labelmapColorLUT,
+    planeMap,
+  }
+}
+
 /*
 ✨✨✨✨
 ✨✨✨✨
@@ -281,155 +430,39 @@ class VTK4UPExample extends Component {
 
     const mrImageDataObject = loadDataset(images);
 
-    const seg = await fetchSegArrayBuffer(segURL);
+    const segs = []
+    segs.push(await fetchSegArrayBuffer(segURL))
+    segs.push(await fetchSegArrayBuffer(seg2URL))
 
+    const volumes = []
+    for (const seg of segs){
+      volumes.push(await generateSegVolume(mrImageDataObject, seg, mrImageIds))
+    }
 
-    const { labelmapDataObject, labelmapColorLUT } = await generateSegVolume(
-      mrImageDataObject,
-      seg,
-      mrImageIds
-    );
+    const fourUps = []
+    // volumes.forEach(({labelmapDataObject, labelmapColorLUT}, i) => {
+    //   const fourUp = generate4Up(mrImageDataObject, labelmapDataObject, labelmapColorLUT)
+    //   fourUps.push(fourUp)
+    // });
 
+    fourUps.push(generate4Up(mrImageDataObject, volumes[0].labelmapDataObject, volumes[0].labelmapColorLUT))
+    fourUps.push(generate4Up(mrImageDataObject, volumes[1].labelmapDataObject, volumes[1].labelmapColorLUT, [0, 1, 0]))
+
+    const {imageActors, labelmapDataObject, labelmapColorLUT, planeMap} = fourUps[0]
+
+    const labelmapActors = {}
+    const ijk = ['I', 'J', 'K']
+    ijk.forEach((key, index) => {
+      labelmapActors[key] = fourUps.map(fourUp => fourUp.labelmapActors[index])
+      labelmapActors[key + 'Fill'] = fourUps.map(fourUp => fourUp.labelmapFillActors[index])
+    })
+
+    const marchingCubesActors = fourUps.map(fourUp => fourUp.segActor)
 
     // MR
     /////// Replace with image mapping. ///////
 
     // Use one dataset, and 3 actors/mappers for the 3 different views
-    const mrImageData = mrImageDataObject.vtkImageData;
-
-    const direction = mrImageData.getDirection();
-    const planes = [
-      direction.slice(0, 3),
-      direction.slice(3, 6),
-      direction.slice(6, 9),
-    ];
-    const orient = planes.map(arr =>
-      arr.findIndex(i => Math.abs(Math.round(i)) === 1)
-    );
-    const planeMap = {
-      Sagittal: {
-        plane: orient.indexOf(0),
-      },
-      Coronal: {
-        plane: orient.indexOf(1),
-      },
-      Axial: {
-        plane: orient.indexOf(2),
-      },
-    };
-    planeMap.Sagittal.flip = planes[planeMap.Sagittal.plane].some(
-      i => Math.round(i) === -1
-    );
-    planeMap.Coronal.flip = planes[planeMap.Coronal.plane].some(
-      i => Math.round(i) === -1
-    );
-    planeMap.Axial.flip = planes[planeMap.Axial.plane].some(
-      i => Math.round(i) === -1
-    );
-
-    const range = mrImageData
-    .getPointData()
-    .getScalars()
-    .getRange();
-
-    const windowWidth = Math.abs(range[1] - range[0]);
-    const windowLevel = range[0] + windowWidth / 2;
-
-    const imageActors = [];
-
-    for (let i = 0; i < 3; i++) {
-      const imageMapper = vtkImageMapper.newInstance();
-      const imageActor = vtkImageSlice.newInstance();
-
-      imageMapper.setInputData(mrImageData);
-      imageActor.setMapper(imageMapper);
-
-      imageActor.getProperty().setColorWindow(windowWidth);
-      imageActor.getProperty().setColorLevel(windowLevel);
-
-      imageActors.push(imageActor);
-    }
-
-    // SEG
-
-    const segRange = labelmapDataObject
-    .getPointData()
-    .getScalars()
-    .getRange();
-
-    const segMapper = vtkMapper.newInstance();
-    const segActor = vtkActor.newInstance();
-
-    const labelmapTransferFunctions = makeLabelMapColorTransferFunction(
-      labelmapColorLUT
-    );
-
-    const marchingCube = vtkImageMarchingCubes.newInstance({
-      contourValue: (segRange[0] + segRange[1]) / 3,
-      computeNormals: true,
-      mergePoints: true,
-    });
-    marchingCube.setInputData(labelmapDataObject);
-    segActor.getProperty().setColor(1, 0, 0);
-    segActor.setMapper(segMapper);
-    segMapper.setInputConnection(marchingCube.getOutputPort());
-
-    // labelmapActors for 2D views
-
-    const outline = vtkImageOutlineFilter.newInstance();
-    // opacity function for the outline filter
-    const labelmapOFun = vtkPiecewiseFunction.newInstance();
-
-    labelmapOFun.addPoint(0, 0); // our background value, 0, will be invisible
-    labelmapOFun.addPoint(0.5, 1);
-    labelmapOFun.addPoint(1, 1);
-
-    const labelmapActors = [];
-
-    outline.setInputData(labelmapDataObject);
-    outline.setSlicingMode(2);
-
-    for (let i = 0; i < 3; i++) {
-      const labelmapMapper = vtkImageMapper.newInstance();
-      const labelmapActor = vtkImageSlice.newInstance();
-
-      labelmapMapper.setInputData(outline.getOutputData());
-      labelmapActor.setMapper(labelmapMapper);
-      labelmapActor.getProperty().setInterpolationType(0);
-
-      labelmapActor
-      .getProperty()
-      .setRGBTransferFunction(labelmapTransferFunctions.cfun);
-
-      labelmapActor.getProperty().setScalarOpacity(labelmapOFun);
-
-      labelmapActors.push(labelmapActor);
-    }
-
-    const labelmapFillOFun = vtkPiecewiseFunction.newInstance();
-
-    labelmapFillOFun.addPoint(0, 0); // our background value, 0, will be invisible
-    labelmapFillOFun.addPoint(0.5, 0.1);
-    labelmapFillOFun.addPoint(1, 0.2);
-
-    const labelmapFillActors = [];
-
-    for (let i = 0; i < 3; i++) {
-      const labelmapFillMapper = vtkImageMapper.newInstance();
-      const labelmapFillActor = vtkImageSlice.newInstance();
-
-      labelmapFillMapper.setInputData(labelmapDataObject);
-      labelmapFillActor.setMapper(labelmapFillMapper);
-      labelmapFillActor.getProperty().setInterpolationType(0);
-
-      labelmapFillActor
-      .getProperty()
-      .setRGBTransferFunction(labelmapTransferFunctions.cfun);
-
-      labelmapFillActor.getProperty().setScalarOpacity(labelmapFillOFun);
-
-      labelmapFillActors.push(labelmapFillActor);
-    }
 
     this.setState({
       imageActors: {
@@ -437,22 +470,13 @@ class VTK4UPExample extends Component {
         J: imageActors[1],
         K: imageActors[2],
       },
-      labelmapActors: {
-        I: labelmapActors[0],
-        IFill: labelmapFillActors[0],
-        J: labelmapActors[1],
-        JFill: labelmapFillActors[1],
-        K: labelmapActors[2],
-        KFill: labelmapFillActors[2],
-      },
-      marchingCubesActor: [segActor],
+      labelmapActors: labelmapActors,
+      marchingCubesActors,
       paintFilterLabelMapImageData: labelmapDataObject,
       paintFilterBackgroundImageData: mrImageDataObject.vtkImageData,
       labelmapColorLUT,
-      displayCrosshairs: false,
       planeMap,
     });
-
   }
 
   storeApi = (viewportIndex, type) => {
@@ -470,13 +494,16 @@ class VTK4UPExample extends Component {
         type === '2D'
           ? vtkInteractorStyle2DCrosshairs.newInstance()
           : vtkInteractorStyle3DCrosshairs.newInstance()
-
       // istyle.setCrosshairWidth(Math.max(...this.state.paintFilterBackgroundImageData.getDimensions()) * 2)
 
       // add istyle
       api.setInteractorStyle({
         istyle,
         configuration: { apis, apiIndex: viewportIndex},
+        callbacks: {
+          setActors: api.actors,
+          addCrosshairSlices: this.apis
+        }
       });
 
       // // Its up to the layout manager of an app to know how many viewports are being created.
@@ -491,30 +518,59 @@ class VTK4UPExample extends Component {
     };
   };
 
-  // toggleCrosshairs = () => {
-  //   const { displayCrosshairs } = this.state;
-  //   const apis = this.apis;
-  //
-  //   const shouldDisplayCrosshairs = !displayCrosshairs;
-  //
-  //   apis.forEach(api => {
-  //     const { svgWidgetManager, svgWidgets } = api;
-  //     if (!svgWidgets || !svgWidgets.crosshairsWidget) {
-  //       return;
-  //     }
-  //     svgWidgets.crosshairsWidget.setDisplay(shouldDisplayCrosshairs);
-  //     svgWidgetManager.render();
-  //   });
-  //
-  //   this.setState({ displayCrosshairs: shouldDisplayCrosshairs });
-  // };
+  toggleActor = actor => {
+    for (const api of this.apis){
+      if (api.type == 'VIEW3D'){
+        const renderer = api.genericRenderWindow.getRenderer()
+        if (renderer.getActors().includes(actor)){
+          renderer.removeActor(actor)
+        }else{
+          renderer.addActor(actor)
+        }
+        renderer.getRenderWindow().render()
+        break
+      }
+    }
+  }
+
+  toggleCrosshairs = () => {
+    const apis = this.apis;
+
+    apis.forEach((api, i) => {
+      const istyle = api
+      .genericRenderWindow
+      .getRenderWindow()
+      .getInteractor()
+      .getInteractorStyle()
+
+      istyle.toggleCrosshairs()
+
+    });
+  };
+
+  toggleCrosshairSlices = () => {
+    const apis = this.apis;
+
+    apis.forEach((api, i) => {
+      console.log(api)
+      if (api.type == 'VIEW3D'){
+        const istyle = api
+        .genericRenderWindow
+        .getRenderWindow()
+        .getInteractor()
+        .getInteractorStyle()
+
+        istyle.toggleCrosshairSlices()
+      }
+    });
+  };
 
   render() {
     if (
       !this.state.imageActors ||
       !this.state.labelmapActors ||
-      !this.state.marchingCubesActor ||
-      !this.state.marchingCubesActor.length
+      !this.state.marchingCubesActors ||
+      !this.state.marchingCubesActors.length
     ) {
       return <h4>Loading...</h4>;
     }
@@ -522,25 +578,35 @@ class VTK4UPExample extends Component {
     return (
       <>
         <div className="row">
-          <div className="col-xs-4">
-            <p>This example demonstrates a 4up.</p>
-          </div>
-          <div className="col-xs-4">
-            <p>Click bellow to toggle crosshairs on/off.</p>
-            <button onClick={this.toggleCrosshairs}>
-              {this.state.displayCrosshairs
-                ? 'Hide Crosshairs'
-                : 'Show Crosshairs'}
-            </button>
-          </div>
+          <table style={{margin:'20px'}}>
+            <tbody style={{margin:'20px'}}>
+              <tr>
+                <th>Crosshairs: </th>
+                <th><input type='checkbox' onChange={this.toggleCrosshairs} checked={true}></input></th>
+              </tr>
+              <tr>
+                <th>Crosshairs Slices: </th>
+                <th><input type='checkbox' onChange={this.toggleCrosshairSlices} checked={true}></input></th>
+              </tr>
+              {this.state.marchingCubesActors.map((actor, i) => {
+                return (
+                  <tr key={i}>
+                    <th>Seg {i + 1}: </th>
+                    <th><input type='checkbox' onChange={this.toggleActor.bind(this, actor)} checked={true}></input></th>
+                  </tr>
+                )
+              })
+              }
+            </tbody>
+          </table>
         </div>
         <div className="row">
           <div className="col-sm-4">
             <View2DImageMapper
               actors={[this.state.imageActors.I]}
               labelmapActors={[
-                this.state.labelmapActors.IFill,
-                this.state.labelmapActors.I,
+                ...this.state.labelmapActors.IFill,
+                ...this.state.labelmapActors.I,
               ]}
               planeMap={this.state.planeMap}
               onCreated={this.storeApi(0, '2D')}
@@ -551,8 +617,8 @@ class VTK4UPExample extends Component {
             <View2DImageMapper
               actors={[this.state.imageActors.J]}
               labelmapActors={[
-                this.state.labelmapActors.JFill,
-                this.state.labelmapActors.J,
+                ...this.state.labelmapActors.JFill,
+                ...this.state.labelmapActors.J,
               ]}
               planeMap={this.state.planeMap}
               onCreated={this.storeApi(1, '2D')}
@@ -565,8 +631,8 @@ class VTK4UPExample extends Component {
             <View2DImageMapper
               actors={[this.state.imageActors.K]}
               labelmapActors={[
-                this.state.labelmapActors.KFill,
-                this.state.labelmapActors.K,
+                ...this.state.labelmapActors.KFill,
+                ...this.state.labelmapActors.K,
               ]}
               planeMap={this.state.planeMap}
               onCreated={this.storeApi(2, '2D')}
@@ -576,7 +642,7 @@ class VTK4UPExample extends Component {
           {/** 3D  View*/}
           <div className="col-sm-4">
             <View3DMarchingCubes
-              actors={this.state.marchingCubesActor}
+              actors={this.state.marchingCubesActors}
               planeMap={this.state.planeMap}
               onCreated={this.storeApi(3, '3D')}
             />
