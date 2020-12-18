@@ -138,20 +138,21 @@ export default class View2DImageMapper extends Component {
       }
 
       polyData.forEach((polyData, i) => {
+        const c = sliceCenter.map(s => Math.ceil(s));
         const plane = vtkPlane.newInstance();
-        plane.setOrigin(sliceCenter);
+        plane.setOrigin(...c);
         plane.setNormal(...normal);
         const cutter = vtkCutter.newInstance();
         cutter.setCutFunction(plane);
         cutter.setInputData(polyData);
-        const tubeFilter = vtkTubeFilter.newInstance();
-        tubeFilter.setInputConnection(cutter.getOutputPort());
-        tubeFilter.setCapping(false);
-        tubeFilter.setNumberOfSides(nsides);
-        tubeFilter.setRadius(radius);
+        // const tubeFilter = vtkTubeFilter.newInstance();
+        // tubeFilter.setInputConnection(cutter.getOutputPort());
+        // tubeFilter.setCapping(false);
+        // tubeFilter.setNumberOfSides(nsides);
+        // tubeFilter.setRadius(radius);
         const cutMapper = vtkMapper.newInstance();
-        cutMapper.setInputConnection(tubeFilter.getOutputPort());
-        //cutMapper.setInputConnection(cutter.getOutputPort());
+        //cutMapper.setInputConnection(tubeFilter.getOutputPort());
+        cutMapper.setInputConnection(cutter.getOutputPort());
         const cutActor = vtkActor.newInstance();
         cutActor.setMapper(cutMapper);
         const cutProperty = cutActor.getProperty();
