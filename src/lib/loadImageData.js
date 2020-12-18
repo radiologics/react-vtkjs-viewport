@@ -1,5 +1,5 @@
 import cornerstone from 'cornerstone-core';
-import { requestPoolManager } from 'cornerstone-tools';
+import { requestPoolManager, stackPrefetch } from 'cornerstone-tools';
 import insertSlice from './data/insertSlice.js';
 import getPatientWeightAndCorrectedDose from './data/getPatientWeightAndCorrectedDose.js';
 
@@ -141,5 +141,6 @@ function prefetchImageIds(
     if (i < n) loadImage(imageIds[i++]);
   }
 
+  stackPrefetch.setConfiguration({ maxSimultaneousRequests: 7 });
   requestPoolManager.startGrabbing();
 }
