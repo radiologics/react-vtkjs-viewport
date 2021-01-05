@@ -21,10 +21,9 @@ import getImageData from './lib/getImageData.js';
 import loadImageData from './lib/loadImageData.js';
 import invertVolume from './lib/invertVolume.js';
 import EVENTS from './events.js';
-import VTKAxis from './VTKViewport/VTKAxis.js';
-import vtkInteractorStyle3DCrosshairs from './VTKViewport/vtkInteractorStyle3DCrosshairs.js';
-import vtkInteractorStyle2DCrosshairs from './VTKViewport/vtkInteractorStyle2DCrosshairs.js';
-import vtk3DCrosshairsInterface from './VTKViewport/vtk3DCrosshairsInterface.js';
+import VTKAxis from './Crosshairs/VTKAxis.js';
+import vtkInteractorStyle3DCrosshairs from './Crosshairs/vtkInteractorStyle3DCrosshairs.js';
+import vtkInteractorStyle2DCrosshairs from './Crosshairs/vtkInteractorStyle2DCrosshairs.js';
 
 export {
   View2D,
@@ -47,7 +46,6 @@ export {
   vtkInteractorStyleImagePanZoom,
   vtkInteractorStyle3DCrosshairs,
   vtkInteractorStyle2DCrosshairs,
-  vtk3DCrosshairsInterface,
   vtkSVGWidgetManager,
   vtkSVGCrosshairsWidget,
   vtkSVGRotatableCrosshairsWidget,

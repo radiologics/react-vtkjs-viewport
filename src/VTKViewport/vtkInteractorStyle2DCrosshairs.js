@@ -1,197 +1,208 @@
 import macro from 'vtk.js/Sources/macro';
 import vtkInteractorStyleTrackballCamera from 'vtk.js/Sources/Interaction/Style/InteractorStyleTrackballCamera';
+import Constants from 'vtk.js/Sources/Rendering/Core/InteractorStyle/Constants';
+import vtkPlaneManipulator from 'vtk.js/Sources/Widgets/Manipulators/PlaneManipulator';
 import vtkCoordinate from 'vtk.js/Sources/Rendering/Core/Coordinate';
-import vtkPointPicker from 'vtk.js/Sources/Rendering/Core/PointPicker';
-import VTKAxis from './VTKAxis';
+import vtkBoundingBox from 'vtk.js/Sources/Common/DataModel/BoundingBox';
+import { VTKAxis } from '@vtk-viewport';
 
-function vtkInteractorStyle2DCrosshairs(publicAPI, model) {
-  //Set classname
-  model.classHierarchy.push('vtkInteractorStyle2DCrosshairs');
+const { States } = Constants;
 
-  //get copy of default publicAPI
-  const superAPI = Object.assign({}, publicAPI);
+// ----------------------------------------------------------------------------
+// Global methods
+// ----------------------------------------------------------------------------
 
-  publicAPI.moveCrosshairs = callData => {
-    const api = model.apis[model.apiIndex];
+// ----------------------------------------------------------------------------
+// vtkInteractorStyleCrosshairsMarchingCubes methods
+// ----------------------------------------------------------------------------
 
-    const mousePos = callData.position;
+function vtkInteractorStyleCrosshairsMarchingCubes(publicAPI, model) {
+  // Set our className
+  model.classHierarchy.push('vtkInteractorStyle3DCrosshairs');
+  model.planeManipulator = vtkPlaneManipulator.newInstance();
 
-    const coords = vtkCoordinate.newInstance();
-    coords.setCoordinateSystemToDisplay();
-    coords.setValue(mousePos.x, mousePos.y, mousePos.z);
+  publicAPI.resetCrosshairs = () => {
+    const { apis, apiIndex } = model;
+    const api = apis[apiIndex];
 
-    const worldPos = coords.getComputedWorldValue(
-      api.genericRenderWindow.getRenderer()
+    api.svgWidgets.crosshairsWidget.moveCrosshairs(
+      publicAPI.getCenter(),
+      apis,
+      apiIndex
     );
 
-    const mapper = api.actors[0].getMapper();
-    const slicingMode = mapper.getSlicingMode();
-    worldPos[slicingMode] = mapper.getBoundsForSlice(mapper.getSlice())[
-      slicingMode * 2
-    ];
-
-    model.apis.forEach((api, i) => {
-      const istyle = api.genericRenderWindow
-        .getRenderWindow()
-        .getInteractor()
-        .getInteractorStyle();
-
-      istyle.updateCrosshairs(worldPos);
-    });
+    publicAPI.invokeInteractionEvent({ type: 'InteractionEvent' });
   };
 
-  publicAPI.updateCrosshairs = worldPos => {
-    const pos = [...worldPos];
+  publicAPI.moveCrosshairs = callData => {
+    const { apis, apiIndex } = model;
+    const api = apis[apiIndex];
 
-    const api = publicAPI.getApis()[publicAPI.getApiIndex()];
+    const pos = callData.position;
+    const renderer = callData.pokedRenderer;
 
-    const mapper = api.actors[0].getMapper();
-    const slice = mapper.getSliceAtPosition(pos);
-    mapper.setSlice(slice);
+    const dPos = vtkCoordinate.newInstance();
+    dPos.setCoordinateSystemToDisplay();
 
-    const slicingMode = mapper.getSlicingMode();
-    pos[slicingMode] += 1;
+    dPos.setValue(pos.x, pos.y, 0);
+    const worldCoords = dPos.getComputedWorldValue(renderer);
+    console.log(worldCoords);
 
-    publicAPI.getCrosshairs().setPoint(...pos);
+    api.svgWidgets.crosshairsWidget.moveCrosshairs(worldCoords, apis, apiIndex);
 
-    api.genericRenderWindow.getRenderWindow().render();
+    publicAPI.invokeInteractionEvent({ type: 'InteractionEvent' });
+  };
+
+  const superHandleMouseMove = publicAPI.handleMouseMove;
+  publicAPI.handleMouseMove = callData => {
+    if (model.state === States.IS_WINDOW_LEVEL) {
+      publicAPI.moveCrosshairs(callData);
+    } else if (superHandleMouseMove) {
+      superHandleMouseMove(callData);
+    }
+  };
+
+  publicAPI.superHandleLeftButtonPress = publicAPI.handleLeftButtonPress;
+  publicAPI.handleLeftButtonPress = callData => {
+    if (!callData.shiftKey && !callData.controlKey) {
+      if (model.actor) {
+        publicAPI.moveCrosshairs(callData);
+        publicAPI.startWindowLevel();
+      }
+    } else if (publicAPI.superHandleLeftButtonPress) {
+      publicAPI.superHandleLeftButtonPress(callData);
+    }
+  };
+
+  publicAPI.handleRightButtonPress = callData => {
+    publicAPI.superHandleLeftButtonPress(callData);
+  };
+
+  publicAPI.superHandleLeftButtonRelease = publicAPI.handleLeftButtonRelease;
+  publicAPI.handleRightButtonRelease = callData => {
+    publicAPI.superHandleLeftButtonRelease(callData);
+  };
+
+  publicAPI.superHandleLeftButtonRelease = publicAPI.handleLeftButtonRelease;
+  publicAPI.handleLeftButtonRelease = () => {
+    switch (model.state) {
+      case States.IS_WINDOW_LEVEL:
+        publicAPI.endWindowLevel();
+        break;
+
+      default:
+        publicAPI.superHandleLeftButtonRelease();
+        break;
+    }
+  };
+
+  // publicAPI.setCrosshairWidth = (width) => {
+  //   if (publicAPI.getAxis()){
+  //     publicAPI.getAxis().setWidth(width)
+  //   }
+  //   else{
+  //     publicAPI.setCrosshairWidth(width)
+  //   }
+  // }
+
+  // Slice normal is just camera DOP
+  publicAPI.getSliceNormal = () => {
+    if (model.actor && model.interactor) {
+      const renderer = model.interactor.getCurrentRenderer();
+      const camera = renderer.getActiveCamera();
+      return camera.getDirectionOfProjection();
+    }
+    return [0, 0, 0];
+  };
+
+  publicAPI.setActor = actor => {
+    model.actor = actor;
+    model.axis = new VTKAxis(0, 0, 0, publicAPI.getCrosshairWidth());
+
+    publicAPI.set('axis', model.axis);
+
+    const renderer = model.interactor.getCurrentRenderer();
+    const camera = renderer.getActiveCamera();
+    if (actor) {
+      // prevent zoom manipulator from messing with our focal point
+      camera.setFreezeFocalPoint(true);
+    } else {
+      camera.setFreezeFocalPoint(false);
+    }
+
+    console.log({ model, publicAPI });
+
+    publicAPI.get('axis').axis.actors.map(actor => renderer.addActor(actor));
   };
 
   publicAPI.setImageActor = actor => {
-    superAPI.setImageActor(actor);
+    model.actor = actor;
+    model.axis = new VTKAxis(0, 0, 0, publicAPI.getCrosshairWidth());
+
+    publicAPI.set('axis', model.axis);
 
     const renderer = model.interactor.getCurrentRenderer();
 
-    const bounds = actor.getBounds();
-    const width =
-      Math.max(
-        Math.abs(bounds[1] - bounds[0]),
-        Math.abs(bounds[3] - bounds[2]),
-        Math.abs(bounds[5] - bounds[4])
-      ) * 2;
-
-    const pos = actor.getCenter();
-
-    const mapper = actor.getMapper();
-    const slicingMode = mapper.getSlicingMode();
-    pos[slicingMode] += 1;
-
-    const crosshairs = new VTKAxis(...pos, width);
-    // crosshairs.actors.forEach((actor, i) => {
-    //   renderer.addActor(actor);
-    // });
-
-    publicAPI.setCrosshairs(crosshairs);
+    publicAPI.get('axis').axis.actors.map(actor => renderer.addActor(actor));
   };
 
-  // publicAPI.setActors = actors => {
-  //   actors.forEach((actor, i) => {
-  //     actor.getProperty().setOpacity(0.5);
-  //   })
-  //   superAPI.setActors(actors);
-  // }
-
-  publicAPI.handleLeftButtonPress = callData => {
-    if (callData.shiftKey || callData.altKey || callData.controlKey) {
-      //If not just pressing the mouse button, do whatever trackball camera would normally do
-      superAPI.handleLeftButtonPress(callData);
-    } else {
-      //otherwise, move the crosshairs
-      publicAPI.moveCrosshairs(callData);
-      model.movingCrosshairs = true;
-    }
+  publicAPI.getImageActor = () => {
+    return null;
   };
 
-  publicAPI.handleLeftButtonRelease = callData => {
-    model.movingCrosshairs = false;
-
-    superAPI.handleLeftButtonRelease(callData);
+  publicAPI.getSliceCenter = () => {
+    //set to center of current slice
+    return vtkBoundingBox.getCenter(model.actor.getBoundsForSlice());
   };
 
-  publicAPI.handleMouseMove = callData => {
-    if (
-      !(callData.shiftKey || callData.altKey || callData.controlKey) &&
-      model.movingCrosshairs
-    ) {
-      //otherwise, move the crosshairs
-      publicAPI.moveCrosshairs(callData);
-    } else {
-      //If not just pressing the mouse button, do whatever trackball camera would normally do
-      superAPI.handleMouseMove(callData);
-    }
-  };
-
-  publicAPI.handleMouseWheel = callData => {
-    const mapper = publicAPI.getImageActor().getMapper();
-    const slice = mapper.getSlice() + callData.spinY;
-
-    mapper.setSlice(slice);
-
-    const worldPos = [
-      publicAPI.getCrosshairs().x,
-      publicAPI.getCrosshairs().y,
-      publicAPI.getCrosshairs().z,
-    ];
-
-    const slicingMode = mapper.getSlicingMode();
-    worldPos[slicingMode] = mapper.getBoundsForSlice(mapper.getSlice())[
-      slicingMode * 2
-    ];
-
-    model.apis.forEach((api, i) => {
-      const istyle = api.genericRenderWindow
-        .getRenderWindow()
-        .getInteractor()
-        .getInteractorStyle();
-
-      istyle.updateCrosshairs(worldPos);
-    });
-  };
-
-  publicAPI.handleStartMouseWheel = () => {};
-  publicAPI.handleEndMouseWheel = () => {};
-
-  publicAPI.toggleCrosshairs = () => {
-    const crosshairs = publicAPI.getCrosshairs();
+  publicAPI.getCemter = () => {
+    // Get viewport and get its center.
     const renderer = model.interactor.getCurrentRenderer();
+    const view = renderer.getRenderWindow().getViews()[0];
+    const dims = view.getViewportSize(renderer);
+    const dPos = vtkCoordinate.newInstance();
 
-    crosshairs.actors.forEach((actor, i) => {
-      if (renderer.getActors().includes(actor)) {
-        renderer.removeActor(actor);
-      } else {
-        renderer.addActor(actor);
-      }
-    });
+    dPos.setCoordinateSystemToDisplay();
 
-    renderer.getRenderWindow().render();
+    dPos.setValue(0.5 * dims[0], 0.5 * dims[1], 0);
+    return dPos.getComputedWorldValue(renderer);
   };
 }
 
-//Class defaults
+// ----------------------------------------------------------------------------
+// Object factory
+// ----------------------------------------------------------------------------
+
 const DEFAULT_VALUES = {};
 
+// ----------------------------------------------------------------------------
+
 export function extend(publicAPI, model, initialValues = {}) {
-  //combine all default values, initial values, and model into one object
   Object.assign(model, DEFAULT_VALUES, initialValues);
 
+  // Inheritance
   vtkInteractorStyleTrackballCamera.extend(publicAPI, model, initialValues);
 
-  //assign variables that can be set and gotten
   macro.setGet(publicAPI, model, [
+    'callback',
     'apis',
     'apiIndex',
-    'crosshairs',
-    'imageActor',
-    'actors',
+    'actor',
+    'axis',
+    'crosshairWidth',
   ]);
 
-  //add function
-  vtkInteractorStyle2DCrosshairs(publicAPI, model);
+  // Object specific methods
+  vtkInteractorStyleCrosshairsMarchingCubes(publicAPI, model);
 }
+
+// ----------------------------------------------------------------------------
 
 export const newInstance = macro.newInstance(
   extend,
-  'vtkInteractorStyle2DCrosshairs'
+  'vtkInteractorStyleCrosshairsMarchingCubes'
 );
 
-export default { newInstance, extend };
+// ----------------------------------------------------------------------------
+
+export default Object.assign({ newInstance, extend });
