@@ -11,6 +11,7 @@ function vtkInteractorStyle2DCrosshairs(publicAPI, model) {
   //get copy of default publicAPI
   const superAPI = Object.assign({}, publicAPI);
 
+  //class to keep track of crosshairs
   const crosshairs = new VTKAxis(0, 0, 0, 0);
   publicAPI.setCrosshairs(crosshairs);
 
@@ -19,6 +20,7 @@ function vtkInteractorStyle2DCrosshairs(publicAPI, model) {
 
     const mousePos = callData.position;
 
+    //get in world position from on screen position
     const coords = vtkCoordinate.newInstance();
     coords.setCoordinateSystemToDisplay();
     coords.setValue(mousePos.x, mousePos.y, mousePos.z);
@@ -27,12 +29,14 @@ function vtkInteractorStyle2DCrosshairs(publicAPI, model) {
       api.genericRenderWindow.getRenderer()
     );
 
+    //set position to be on the same plane as the slice that was clicked on
     const mapper = api.actors[0].getMapper();
     const slicingMode = mapper.getSlicingMode();
     worldPos[slicingMode] = mapper.getBoundsForSlice(mapper.getSlice())[
       slicingMode * 2
     ];
 
+    //update crosshairs for each crosshair interactor
     model.apis.forEach((api, i) => {
       const istyle = api.genericRenderWindow
         .getRenderWindow()
@@ -48,23 +52,28 @@ function vtkInteractorStyle2DCrosshairs(publicAPI, model) {
 
     const api = publicAPI.getApis()[publicAPI.getApiIndex()];
 
+    //set the slice being viewed to the slice that was clicked on
     const mapper = api.actors[0].getMapper();
     const slice = mapper.getSliceAtPosition(pos);
     mapper.setSlice(slice);
 
+    //make sure crosshairs are in front of slice
     const slicingMode = mapper.getSlicingMode();
     pos[slicingMode] += 1;
 
+    //set crosshairs to new position and re-render
     publicAPI.getCrosshairs().setPoint(...pos);
 
     api.genericRenderWindow.getRenderWindow().render();
   };
 
   publicAPI.setImageActor = actor => {
+    //actually set image actor
     superAPI.setImageActor(actor);
 
     const renderer = model.interactor.getCurrentRenderer();
 
+    //find the size the crosshairs should be
     const bounds = actor.getBounds();
     const width =
       Math.max(
@@ -73,46 +82,46 @@ function vtkInteractorStyle2DCrosshairs(publicAPI, model) {
         Math.abs(bounds[5] - bounds[4])
       ) * 2;
 
+    //get the default position the crosshairs should be at
     const pos = actor.getCenter();
 
+    //ensure that the crosshairs are in front of the imageSlice
     const mapper = actor.getMapper();
     const slicingMode = mapper.getSlicingMode();
     pos[slicingMode] += 1;
 
+    //set crosshair values
     const crosshairs = publicAPI.getCrosshairs();
     crosshairs.actors.forEach(renderer.addActor);
     crosshairs.setWidth(width);
     crosshairs.setPoint(...pos);
-
-    publicAPI.setCrosshairs(crosshairs);
   };
 
   publicAPI.handleLeftButtonPress = callData => {
+    //allow user to use normal controls other than just pressing the left mouse button, which controls the crosshairs
     if (callData.shiftKey || callData.altKey || callData.controlKey) {
-      //If not just pressing the mouse button, do whatever trackball camera would normally do
       superAPI.handleLeftButtonPress(callData);
     } else {
-      //otherwise, move the crosshairs
       publicAPI.moveCrosshairs(callData);
       model.movingCrosshairs = true;
     }
   };
 
   publicAPI.handleLeftButtonRelease = callData => {
+    //on release, stop moving the crosshairs with the cursor
     model.movingCrosshairs = false;
 
     superAPI.handleLeftButtonRelease(callData);
   };
 
   publicAPI.handleMouseMove = callData => {
+    //when crosshairs aren't being moved, do what would normally be done on mouse move
     if (
       !(callData.shiftKey || callData.altKey || callData.controlKey) &&
       model.movingCrosshairs
     ) {
-      //otherwise, move the crosshairs
       publicAPI.moveCrosshairs(callData);
     } else {
-      //If not just pressing the mouse button, do whatever trackball camera would normally do
       superAPI.handleMouseMove(callData);
     }
   };
@@ -123,17 +132,20 @@ function vtkInteractorStyle2DCrosshairs(publicAPI, model) {
 
     mapper.setSlice(slice);
 
+    //get current position of crosshairs
     const worldPos = [
       publicAPI.getCrosshairs().x,
       publicAPI.getCrosshairs().y,
       publicAPI.getCrosshairs().z,
     ];
 
+    //alter the position based on how much the mouse wheel has moved in the dimension the slice is being sliced
     const slicingMode = mapper.getSlicingMode();
     worldPos[slicingMode] = mapper.getBoundsForSlice(mapper.getSlice())[
       slicingMode * 2
     ];
 
+    //move the crosshairs to the new position
     model.apis.forEach((api, i) => {
       const istyle = api.genericRenderWindow
         .getRenderWindow()

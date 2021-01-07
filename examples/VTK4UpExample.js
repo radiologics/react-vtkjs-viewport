@@ -484,26 +484,16 @@ class VTK4UPExample extends Component {
       const apis = this.apis;
       apis[viewportIndex] = api;
 
-      // Add svg widget
-      // api.addSVGWidget(
-      //   vtk3DCrosshairsInterface.newInstance(),
-      //   'crosshairsWidget'
-      // );
 
       const istyle =
         type === '2D'
           ? vtkInteractorStyle2DCrosshairs.newInstance()
           : vtkInteractorStyle3DCrosshairs.newInstance()
-      // istyle.setCrosshairWidth(Math.max(...this.state.paintFilterBackgroundImageData.getDimensions()) * 2)
 
-      // add istyle
+      // add crosshair interactor
       api.setInteractorStyle({
         istyle,
         configuration: { apis, apiIndex: viewportIndex},
-        callbacks: {
-          setActors: api.actors,
-          addCrosshairSlices: this.apis
-        }
       });
 
       // // Its up to the layout manager of an app to know how many viewports are being created.

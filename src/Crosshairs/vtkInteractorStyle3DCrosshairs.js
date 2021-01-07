@@ -15,6 +15,7 @@ function vtkInteractorStyle3DCrosshairs(publicAPI, model) {
   //get copy of default publicAPI
   const superAPI = Object.assign({}, publicAPI);
 
+  //class containing crosshair position
   const crosshairs = new VTKAxis(0, 0, 0, 0);
   publicAPI.setCrosshairs(crosshairs);
 
@@ -23,24 +24,18 @@ function vtkInteractorStyle3DCrosshairs(publicAPI, model) {
 
     const mousePos = callData.position;
 
-    const coords = vtkCoordinate.newInstance();
-    coords.setCoordinateSystemToDisplay();
-    coords.setValue(mousePos.x, mousePos.y, mousePos.z);
-
     const actors = publicAPI.getActors();
     const renderer = api.genericRenderWindow.getRenderer();
     const screenPoint = [mousePos.x, mousePos.y, 0];
 
+    //pick a point on the surface of the 3D model that corresponds to the on screen position where the mouse was pressed
     const picker = vtkPointPicker.newInstance();
     picker.setPickFromList(false);
-    // picker.initializePickList();
-    // actors.forEach((actor, i) => {
-    //   picker.addPickList(actor, renderer);
-    // });
 
     const picked = picker.pick(screenPoint, renderer);
     const pointId = picker.getPointId();
 
+    //get the in world position of that point
     const worldPos = picker
       .getActors()[0]
       .getMapper()
@@ -48,6 +43,7 @@ function vtkInteractorStyle3DCrosshairs(publicAPI, model) {
       .getPoints()
       .getPoint(pointId);
 
+    //update crosshairs for each crosshair interactor
     model.apis.forEach((api, i) => {
       const istyle = api.genericRenderWindow
         .getRenderWindow()
@@ -59,6 +55,7 @@ function vtkInteractorStyle3DCrosshairs(publicAPI, model) {
   };
 
   publicAPI.updateCrosshairs = worldPos => {
+    //update the position of the crosshairs and re-render
     publicAPI.getCrosshairs().setPoint(...worldPos);
     publicAPI
       .getApis()
@@ -67,11 +64,12 @@ function vtkInteractorStyle3DCrosshairs(publicAPI, model) {
   };
 
   publicAPI.setActor = actor => {
-    actor.getProperty().setOpacity(0.5);
+    //actually set the actor
     superAPI.setActor(actor);
 
     const renderer = model.interactor.getCurrentRenderer();
 
+    //get default width of crosshairs
     const bounds = actor.getBounds();
     const width =
       Math.max(
@@ -80,28 +78,50 @@ function vtkInteractorStyle3DCrosshairs(publicAPI, model) {
         Math.abs(bounds[5] - bounds[4])
       ) * 2;
 
+    //get default position of crosshairs
     const pos = actor.getCenter();
+    //set default values of crosshairs
     const crosshairs = publicAPI.getCrosshairs();
     crosshairs.actors.forEach(renderer.addActor);
     crosshairs.setPoint(...pos);
     crosshairs.setWidth(width);
   };
 
-  publicAPI.setActors = actors => {
-    actors.forEach((actor, i) => {
-      actor.getProperty().setOpacity(0.5);
-    });
-    superAPI.setActors(actors);
-  };
+  publicAPI.onConfigSet = () => {
+    const apis = publicAPI.getApis();
+    const apiIndex = publicAPI.getApiIndex();
 
-  publicAPI.addCrosshairSlices = apis => {
+    const actors = apis[apiIndex].actors;
+
     const renderer = model.interactor.getCurrentRenderer();
 
+    //render imageSclices ontop of the 3D model
     apis.forEach((api, i) => {
       if (api.type == 'VIEW2D') {
         api.actors.forEach(renderer.addActor);
       }
     });
+
+    //set actors
+    superAPI.setActors(actors);
+  };
+
+  publicAPI.setApis = apis => {
+    superAPI.setApis(apis);
+
+    //if all configs have been set
+    if (publicAPI.getApiIndex()) {
+      publicAPI.onConfigSet();
+    }
+  };
+
+  publicAPI.setApiIndex = apiIndex => {
+    superAPI.setApiIndex(apiIndex);
+
+    //if all configs have been set
+    if (publicAPI.getApis()) {
+      publicAPI.onConfigSet();
+    }
   };
 
   publicAPI.handleLeftButtonPress = callData => {
