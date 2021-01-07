@@ -36,7 +36,7 @@ function vtkInteractorStyle3DCrosshairs(publicAPI, model) {
     const pointId = picker.getPointId();
 
     //get the in world position of that point
-    const worldPos = picker
+    let worldPos = picker
       .getActors()[0]
       .getMapper()
       .getInputData()

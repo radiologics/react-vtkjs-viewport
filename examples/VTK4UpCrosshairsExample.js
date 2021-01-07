@@ -7,8 +7,8 @@ import {
   View3DMarchingCubes,
   vtkInteractorStyleCrosshairsImageMapper,
   vtkSVGCrosshairsWidgetImageMapper,
-  vtkInteractorStyle3DCrosshairs,
-  vtkInteractorStyle2DCrosshairs,
+  vtkInteractorStyle3D4UpCrosshairs,
+  vtkInteractorStyle2D4UpCrosshairs,
   vtk3DCrosshairsInterface,
   vtkInteractorStyleImagePanZoom,} from '@vtk-viewport'
 import vtkInteractorStyleTrackballCamera from 'vtk.js/Sources/Interaction/Style/InteractorStyleTrackballCamera';
@@ -380,17 +380,6 @@ function generate4Up(mrImageDataObject, labelmapDataObject, labelmapColorLUT, co
   }
 }
 
-/*
-✨✨✨✨
-✨✨✨✨
-✨✨✨✨
-✨✨✨✨
-Starts Here!
-✨✨✨✨
-✨✨✨✨
-✨✨✨✨
-✨✨✨✨
-*/
 
 class VTK4UPExample extends Component {
   state = {
@@ -487,8 +476,8 @@ class VTK4UPExample extends Component {
 
       const istyle =
         type === '2D'
-          ? vtkInteractorStyle2DCrosshairs.newInstance()
-          : vtkInteractorStyle3DCrosshairs.newInstance()
+          ? vtkInteractorStyle2D4UpCrosshairs.newInstance()
+          : vtkInteractorStyle3D4UpCrosshairs.newInstance()
 
       // add crosshair interactor
       api.setInteractorStyle({
@@ -508,21 +497,6 @@ class VTK4UPExample extends Component {
     };
   };
 
-  toggleActor = actor => {
-    for (const api of this.apis){
-      if (api.type == 'VIEW3D'){
-        const renderer = api.genericRenderWindow.getRenderer()
-        if (renderer.getActors().includes(actor)){
-          renderer.removeActor(actor)
-        }else{
-          renderer.addActor(actor)
-        }
-        renderer.getRenderWindow().render()
-        break
-      }
-    }
-  }
-
   toggleCrosshairs = () => {
     const apis = this.apis;
 
@@ -538,11 +512,10 @@ class VTK4UPExample extends Component {
     });
   };
 
-  toggleCrosshairSlices = () => {
+  toggleCrosshairSlices = e => {
     const apis = this.apis;
 
     apis.forEach((api, i) => {
-      console.log(api)
       if (api.type == 'VIEW3D'){
         const istyle = api
         .genericRenderWindow
@@ -571,22 +544,11 @@ class VTK4UPExample extends Component {
           <table style={{margin:'20px'}}>
             <tbody style={{margin:'20px'}}>
               <tr>
-                <th>Crosshairs: </th>
-                <th><input type='checkbox' onChange={this.toggleCrosshairs} checked={true}></input></th>
+                <th><button type='checkbox' onClick={this.toggleCrosshairs}>Toggle Crosshairs</button></th>
               </tr>
               <tr>
-                <th>Crosshairs Slices: </th>
-                <th><input type='checkbox' onChange={this.toggleCrosshairSlices} checked={true}></input></th>
+                <th><button type='checkbox' onClick={this.toggleCrosshairSlices}>Toggle Crosshair Slices</button></th>
               </tr>
-              {this.state.marchingCubesActors.map((actor, i) => {
-                return (
-                  <tr key={i}>
-                    <th>Seg {i + 1}: </th>
-                    <th><input type='checkbox' onChange={this.toggleActor.bind(this, actor)} checked={true}></input></th>
-                  </tr>
-                )
-              })
-              }
             </tbody>
           </table>
         </div>
