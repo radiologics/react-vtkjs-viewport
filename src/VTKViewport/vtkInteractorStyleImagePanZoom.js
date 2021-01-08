@@ -1,5 +1,8 @@
 import macro from 'vtk.js/Sources/macro';
+import Constants from 'vtk.js/Sources/Rendering/Core/InteractorStyle/Constants';
 import vtkInteractorStyleTrackballCamera from 'vtk.js/Sources/Interaction/Style/InteractorStyleTrackballCamera';
+
+const { States } = Constants;
 
 // ----------------------------------------------------------------------------
 // Global methods
@@ -45,10 +48,14 @@ function vtkInteractorStyleImagePanZoom(publicAPI, model) {
   };
 
   publicAPI.handleLeftButtonRelease = callData => {
-    if (callData.shiftKey || callData.controlKey) {
-      publicAPI.endPan();
-    } else {
-      publicAPI.endDolly();
+    switch (model.state) {
+      case States.IS_PAN:
+        publicAPI.endPan();
+        break;
+
+      default:
+        publicAPI.endDolly();
+        break;
     }
   };
 
