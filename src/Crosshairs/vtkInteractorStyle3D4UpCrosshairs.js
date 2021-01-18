@@ -2,9 +2,11 @@ import macro from 'vtk.js/Sources/macro';
 import vtkInteractorStyleTrackballCamera from 'vtk.js/Sources/Interaction/Style/InteractorStyleTrackballCamera';
 import vtkCoordinate from 'vtk.js/Sources/Rendering/Core/Coordinate';
 import vtkPointPicker from 'vtk.js/Sources/Rendering/Core/PointPicker';
+import vtkCellPicker from 'vtk.js/Sources/Rendering/Core/CellPicker';
 import vtkImageMarchingSquares from 'vtk.js/Sources/Filters/General/ImageMarchingCubes';
 import vtkImageMapper from 'vtk.js/Sources/Rendering/Core/ImageMapper';
 import vtkActor from 'vtk.js/Sources/Rendering/Core/Actor';
+import vtkSphereSource from 'vtk.js/Sources/Filters/Sources/SphereSource';
 
 import VTKAxis from './VTKAxis';
 
@@ -29,19 +31,35 @@ function vtkInteractorStyle3DCrosshairs(publicAPI, model) {
     const screenPoint = [mousePos.x, mousePos.y, 0];
 
     //pick a point on the surface of the 3D model that corresponds to the on screen position where the mouse was pressed
-    const picker = vtkPointPicker.newInstance();
-    picker.setPickFromList(false);
+    const picker = vtkCellPicker.newInstance();
+    picker.setTolerance(100);
+    picker.setPickFromList(true);
+    picker.setPickList(actors);
 
     const picked = picker.pick(screenPoint, renderer);
-    const pointId = picker.getPointId();
 
-    //get the in world position of that point
-    let worldPos = picker
-      .getActors()[0]
-      .getMapper()
-      .getInputData()
-      .getPoints()
-      .getPoint(pointId);
+    const pickedPositions = picker.getPickedPositions();
+
+    let worldPos = pickedPositions[0];
+
+    //calculate the closest of the picked positions if there are multiple
+    if (pickedPositions.length > 1) {
+      const distances = pickedPositions.map(pos => {
+        const cam = renderer.getActiveCamera();
+        const camPos = cam.getPosition();
+
+        const dist = Math.sqrt(
+          (camPos[0] - pos[0]) ** 2 +
+            (camPos[1] - pos[1]) ** 2 +
+            (camPos[2] - pos[2]) ** 2
+        );
+
+        return dist;
+      });
+
+      renderer.getRenderWindow().render();
+      worldPos = pickedPositions[distances.indexOf(Math.min(...distances))];
+    }
 
     //update crosshairs for each crosshair interactor
     model.apis.forEach((api, i) => {
@@ -204,6 +222,7 @@ export function extend(publicAPI, model, initialValues = {}) {
     'apis',
     'apiIndex',
     'crosshairs',
+    'crosshairList',
     'actor',
     'actors',
   ]);

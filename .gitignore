@@ -13,6 +13,9 @@ build
 .env.test.local
 .env.production.local
 
+# dicom data
+dicoms
+
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

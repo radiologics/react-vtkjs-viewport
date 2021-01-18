@@ -31,8 +31,9 @@ const segmentationModule = cornerstoneTools.getModule('segmentation');
 // MR  1.3.12.2.1107.5.2.32.35162.1999123112191238897317963.0.0.0
 // SEG 	1.2.276.0.7230010.3.1.3.296485376.8.1542816659.201008
 
-const segURL = `${window.location.origin}/examples/dicoms/brainSeg.dcm`;
-const seg2URL = `${window.location.origin}/examples/dicoms/rightEyeSeg.dcm`
+const segURL = `${window.location.origin}/dicoms/brainSeg.dcm`;
+const seg2URL = `${window.location.origin}/dicoms/rightEyeSeg.dcm`;
+const dicomPath = `${window.location.origin}/dicoms`
 
 // const segURL =
 //   'https://server.dcmjs.org/dcm4chee-arc/aets/DCM4CHEE/rs/studies/1.3.12.2.1107.5.2.32.35162.30000015050317233592200000046/series/1.2.276.0.7230010.3.1.3.296485376.8.1542816659.201008/instances/1.2.276.0.7230010.3.1.4.296485376.8.1542816659.201009';
@@ -391,7 +392,7 @@ class VTK4UPExample extends Component {
 
     const imageUrls = []
     for (let i = 0; i < 88; i++){
-      imageUrls.push(`${window.location.origin}/examples/dicoms/${i}.dcm`)
+      imageUrls.push(`${dicomPath}/${i}.dcm`)
     }
 
     const ids = await getImageIds(imageUrls);
