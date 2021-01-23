@@ -8,7 +8,7 @@ import VTKCornerstonePaintingSyncExample from './VTKCornerstonePaintingSyncExamp
 import VTKLoadImageDataExample from './VTKLoadImageDataExample.js';
 import VTKCrosshairsExample from './VTKCrosshairsExample.js';
 import VTKRotatableCrosshairsExample from './VTKRotatableCrosshairsExample.js';
-import VTK4UpExample from './VTK4UpExample.js';
+import VTK4UpExample from './VTK4UpCrosshairsExample.js';
 import VTKMPRRotateExample from './VTKMPRRotateExample.js';
 import VTKVolumeRenderingExample from './VTKVolumeRenderingExample.js';
 
