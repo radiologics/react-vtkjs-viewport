@@ -1,7 +1,6 @@
 import macro from 'vtk.js/Sources/macro';
 import vtkInteractorStyleTrackballCamera from 'vtk.js/Sources/Interaction/Style/InteractorStyleTrackballCamera';
 import vtkCoordinate from 'vtk.js/Sources/Rendering/Core/Coordinate';
-import vtkPointPicker from 'vtk.js/Sources/Rendering/Core/PointPicker';
 import VTKAxis from './VTKAxis';
 
 function vtkInteractorStyle2DCrosshairs(publicAPI, model) {

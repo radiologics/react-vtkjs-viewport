@@ -1,13 +1,7 @@
 import macro from 'vtk.js/Sources/macro';
 import vtkInteractorStyleTrackballCamera from 'vtk.js/Sources/Interaction/Style/InteractorStyleTrackballCamera';
 import vtkCoordinate from 'vtk.js/Sources/Rendering/Core/Coordinate';
-import vtkPointPicker from 'vtk.js/Sources/Rendering/Core/PointPicker';
 import vtkCellPicker from 'vtk.js/Sources/Rendering/Core/CellPicker';
-import vtkImageMarchingSquares from 'vtk.js/Sources/Filters/General/ImageMarchingCubes';
-import vtkImageMapper from 'vtk.js/Sources/Rendering/Core/ImageMapper';
-import vtkActor from 'vtk.js/Sources/Rendering/Core/Actor';
-import vtkSphereSource from 'vtk.js/Sources/Filters/Sources/SphereSource';
-
 import VTKAxis from './VTKAxis';
 
 function vtkInteractorStyle3DCrosshairs(publicAPI, model) {

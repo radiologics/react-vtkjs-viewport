@@ -2,16 +2,11 @@ import React from 'react';
 import { Component } from 'react';
 import dcmjs from 'dcmjs';
 import {
-  VTKAxis,
   View2DImageMapper,
   View3DMarchingCubes,
-  vtkInteractorStyleCrosshairsImageMapper,
-  vtkSVGCrosshairsWidgetImageMapper,
   vtkInteractorStyle3D4UpCrosshairs,
   vtkInteractorStyle2D4UpCrosshairs,
-  vtk3DCrosshairsInterface,
   vtkInteractorStyleImagePanZoom,} from '@vtk-viewport'
-import vtkInteractorStyleTrackballCamera from 'vtk.js/Sources/Interaction/Style/InteractorStyleTrackballCamera';
 import vtkImageMapper from 'vtk.js/Sources/Rendering/Core/ImageMapper';
 import vtkImageSlice from 'vtk.js/Sources/Rendering/Core/ImageSlice';
 import vtkImageMarchingCubes from 'vtk.js/Sources/Filters/General/ImageMarchingCubes';
