@@ -109,19 +109,8 @@ function vtkInteractorStyle3DCrosshairs(publicAPI, model) {
     const apis = publicAPI.getApis();
     const apiIndex = publicAPI.getApiIndex();
 
-    const actors = apis[apiIndex].actors;
-
-    const renderer = model.interactor.getCurrentRenderer();
-
-    //render imageSclices ontop of the 3D model
-    apis.forEach((api, i) => {
-      if (api.type == 'VIEW2D') {
-        api.actors.forEach(renderer.addActor);
-      }
-    });
-
     //set actors
-    superAPI.setActors(actors);
+    superAPI.setActors(apis[apiIndex].actors);
   };
 
   publicAPI.setApis = apis => {
