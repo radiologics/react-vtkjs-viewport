@@ -16,7 +16,6 @@ export default class View3DMarchingCubes extends Component {
     onDestroyed: PropTypes.func,
     dataDetails: PropTypes.object,
     planeMap: PropTypes.object,
-    axes: PropTypes.object,
   };
 
   constructor(props) {
@@ -60,8 +59,6 @@ export default class View3DMarchingCubes extends Component {
     );
     this.orientationWidget.setMinPixelSize(50);
     this.orientationWidget.setMaxPixelSize(500);
-
-    //this.props.axes.actors.map(actor => this.renderer.addActor(actor))
 
     const { planeMap } = this.props;
     const setAxes = function(key) {
@@ -177,7 +174,6 @@ export default class View3DMarchingCubes extends Component {
         get: boundGetApiProperty,
         set: boundSetApiProperty,
         type: 'VIEW3D',
-        crosshairs: this.props.axes,
         _component: this, // Backdoor still open for now whilst the API isn't as mature as View2D.
       };
 
@@ -262,6 +258,10 @@ export default class View3DMarchingCubes extends Component {
       istyle.setViewport(currentViewport);
     }
 
+    if (istyle.getActor && istyle.getActor() !== actors[0]) {
+      istyle.setActor(actors[0]);
+    }
+
     // Add appropriate callbacks
     Object.keys(callbacks).forEach(key => {
       if (typeof istyle[key] === 'function') {
@@ -277,11 +277,6 @@ export default class View3DMarchingCubes extends Component {
     if (configuration) {
       istyle.set(configuration);
     }
-
-    if (istyle.getActor && istyle.getActor() !== actors[0]) {
-      istyle.setActor(actors[0]);
-    }
-    //istyle.getApis()[3].get('cachedCrosshairWorldPosition')
 
     renderWindow.render();
   }
