@@ -29,7 +29,7 @@ function vtkInteractorStyle2DCrosshairs(publicAPI, model) {
     );
 
     //set position to be on the same plane as the slice that was clicked on
-    const mapper = api.actors[0].getMapper();
+    const mapper = publicAPI.getImageActor().getMapper();
     const slicingMode = mapper.getSlicingMode();
     worldPos[slicingMode] = mapper.getBoundsForSlice(mapper.getSlice())[
       slicingMode * 2
@@ -52,7 +52,7 @@ function vtkInteractorStyle2DCrosshairs(publicAPI, model) {
     const api = publicAPI.getApis()[publicAPI.getApiIndex()];
 
     //set the slice being viewed to the slice that was clicked on
-    const mapper = api.actors[0].getMapper();
+    const mapper = publicAPI.getImageActor().getMapper();
     const slice = mapper.getSliceAtPosition(pos);
     mapper.setSlice(slice);
 
