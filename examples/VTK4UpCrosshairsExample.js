@@ -3,472 +3,557 @@ import { Component } from 'react';
 import dcmjs from 'dcmjs';
 import {
   View2DImageMapper,
-  View3DMarchingCubes,
-  vtkInteractorStyle3D4UpCrosshairs,
+  View3DSurfaceMC,
+  getImageData,
+  loadImageData,
   vtkInteractorStyle2D4UpCrosshairs,
-  vtkInteractorStyleImagePanZoom,} from '@vtk-viewport'
+  vtkInteractorStyle3D4UpCrosshairs,
+} from '@vtk-viewport';
 import vtkImageMapper from 'vtk.js/Sources/Rendering/Core/ImageMapper';
 import vtkImageSlice from 'vtk.js/Sources/Rendering/Core/ImageSlice';
-import vtkImageMarchingCubes from 'vtk.js/Sources/Filters/General/ImageMarchingCubes';
-import { api as dicomwebClientApi } from 'dicomweb-client';
 import vtkMapper from 'vtk.js/Sources/Rendering/Core/Mapper';
 import vtkActor from 'vtk.js/Sources/Rendering/Core/Actor';
-import vtkImageData from 'vtk.js/Sources/Common/DataModel/ImageData';
 import vtkDataArray from 'vtk.js/Sources/Common/Core/DataArray';
-import cornerstoneTools from 'cornerstone-tools';
-import cornerstoneWADOImageLoader from 'cornerstone-wado-image-loader';
-import cornerstone from 'cornerstone-core';
-import dicomParser from 'dicom-parser';
+import vtkImageData from 'vtk.js/Sources/Common/DataModel/ImageData';
+import vtkOBJReader from 'vtk.js/Sources/IO/Misc/OBJReader';
+import vtkMTLReader from 'vtk.js/Sources/IO/Misc/MTLReader';
 import vtkColorTransferFunction from 'vtk.js/Sources/Rendering/Core/ColorTransferFunction';
 import vtkPiecewiseFunction from 'vtk.js/Sources/Common/DataModel/PiecewiseFunction';
-import vtkImageOutlineFilter from 'vtk.js/Sources/Filters/General/ImageOutlineFilter';
 
-const segmentationModule = cornerstoneTools.getModule('segmentation');
-
-cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
-cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
-window.cornerstone = cornerstone;
-window.cornerstoneWADOImageLoader = cornerstoneWADOImageLoader;
-
-// MR  1.3.12.2.1107.5.2.32.35162.1999123112191238897317963.0.0.0
-// SEG 	1.2.276.0.7230010.3.1.3.296485376.8.1542816659.201008
-
-const segURL = `${window.location.origin}/dicoms/brainSeg.dcm`;
-const seg2URL = `${window.location.origin}/dicoms/rightEyeSeg.dcm`;
-const dicomPath = `${window.location.origin}/dicoms`
-
-// const segURL =
-//   'https://server.dcmjs.org/dcm4chee-arc/aets/DCM4CHEE/rs/studies/1.3.12.2.1107.5.2.32.35162.30000015050317233592200000046/series/1.2.276.0.7230010.3.1.3.296485376.8.1542816659.201008/instances/1.2.276.0.7230010.3.1.4.296485376.8.1542816659.201009';
-
-function loadDataset(images) {
-  const width = images[0].width
-  const height = images[0].height
-  const depth = images.length
-
-  const spacingXZ = images[0].data.string('x00280030')
-  const spacingX = spacingXZ.split('\\')[0]
-  const spacingZ = spacingXZ.split('\\')[1]
-  const spacingY = images[0].data.string('x00180050')
-
-  var pixelDatas = images.map(image => {return image.getPixelData()})
-  var pixelData = []
-  pixelDatas.map(data => {pixelData = pixelData.concat([...data])})
-  var pixelData = new Uint16Array(pixelData)
-
-  const dataArray = vtkDataArray.newInstance({
-    values: pixelData
-  })
-  const imageData = vtkImageData.newInstance()
-  imageData.getPointData().setScalars(dataArray)
-  imageData.setDimensions([width, height, depth])
-  imageData.setSpacing(Number(spacingX), Number(spacingZ), Number(spacingY))
-
-  return {vtkImageData: imageData, dimensions: [width, height, depth]}
-}
-
-function makeLabelMapColorTransferFunction(lablemapColorLUT, color) {
-  const labelMap = {
-    cfun: vtkColorTransferFunction.newInstance(),
-    ofun: vtkPiecewiseFunction.newInstance(),
-  };
-
-  // labelmap pipeline
-  labelMap.ofun.addPointLong(0, 0, 0.5, 1.0);
-  labelMap.ofun.addPointLong(1, 1.0, 0.5, 1.0);
-
-  buildColorTransferFunction(labelMap, lablemapColorLUT, 1.0, color);
-
-  return labelMap;
-}
-
-const buildColorTransferFunction = (labelmap, colorLUT, opacity, color) => {
-  // TODO -> It seems to crash if you set it higher than 256??
-  // const numColors = Math.min(256, colorLUT.length);
-
-  // This commented out code will read the actual labelmap values, but we have one (?) volume
-
-  // for (let i = 0; i < numColors; i++) {
-  //   //for (let i = 0; i < colorLUT.length; i++) {
-  //   const color = colorLUT[i];
-  //   labelmap.cfun.addRGBPoint(
-  //     i,
-  //     color[0] / 255,
-  //     color[1] / 255,
-  //     color[2] / 255
-  //   );
-
-  //   // Set the opacity per label.
-  //   const segmentOpacity = (color[3] / 255) * opacity;
-  //   labelmap.ofun.addPointLong(i, segmentOpacity, 0.5, 1.0);
-  // }
-
-  labelmap.cfun.addRGBPoint(1, ...color); // label '1' will be red
-  labelmap.ofun.addPointLong(1, 1.0, 0.5, 1.0); // All labels full opacity
-};
-
-function createStudyImageIds(baseUrl, studySearchOptions) {
-  const SOP_INSTANCE_UID = '00080018';
-  const SERIES_INSTANCE_UID = '0020000E';
-
-  const client = new dicomwebClientApi.DICOMwebClient({ url });
-
-  return new Promise((resolve, reject) => {
-    client.retrieveStudyMetadata(studySearchOptions).then(instances => {
-      const imageIds = instances.map(metaData => {
-        const imageId =
-          `wadors:` +
-          baseUrl +
-          '/studies/' +
-          studyInstanceUID +
-          '/series/' +
-          metaData[SERIES_INSTANCE_UID].Value[0] +
-          '/instances/' +
-          metaData[SOP_INSTANCE_UID].Value[0] +
-          '/frames/1';
-
-        window.cornerstoneWADOImageLoader.wadors.metaDataManager.add(
-          imageId,
-          metaData
-        );
-
-        return imageId;
-      });
-
-      resolve(imageIds);
-    }, reject);
-  });
-}
-
-async function getImageIds(urls){
-  const ids = []
-  for (let i = 0; i < urls.length; i++){
-    const file = await fetch(urls[i])
-    const blob = await file.blob()
-    const id = await window.cornerstoneWADOImageLoader.wadouri.fileManager.add(blob)
-    const image = await window.cornerstone.loadAndCacheImage(id)
-    const metaDataProvider = window.cornerstoneWADOImageLoader.wadouri.metaData.metaDataProvider
-    cornerstone.metaData.addProvider(metaDataProvider)
-    ids.push({image, id})
-  }
-  return ids
-}
-
-const generateSegVolume = async (
-  imageDataObject,
-  segP10ArrayBuffer,
-  imageIds
-) => {
-  const imagePromises = [];
-
-  //Fetch images with cornerstone just to cache the metadata needed to format the SEG.
-  for (let i = 0; i < imageIds.length; i++) {
-    const promise = window.cornerstone.loadAndCacheImage(imageIds[i]);
-    imagePromises.push(promise);
-  }
-
-  await Promise.all(imagePromises);
-
-  // Use dcmjs to extract a labelmap from the SEG.
-  const {
-    labelmapBuffer,
-  } = dcmjs.adapters.Cornerstone.Segmentation.generateToolState(
-    imageIds,
-    segP10ArrayBuffer,
-    window.cornerstone.metaData
-  );
-
-  // Create VTK Image Data with buffer as input
-  const labelmapDataObject = vtkImageData.newInstance();
-
-  // Set all labels the same, so this is more similar to our example.
-
-  const Uint16LabelmapBuffer = new Uint16Array(labelmapBuffer);
-
-  for (let i = 0; i < Uint16LabelmapBuffer.length; i++) {
-    if (Uint16LabelmapBuffer[i] !== 0) {
-      Uint16LabelmapBuffer[i] = 1;
-    }
-  }
-
-  const dataArray = vtkDataArray.newInstance({
-    numberOfComponents: 1, // labelmap with single component
-    values: Uint16LabelmapBuffer,
-  });
-
-  labelmapDataObject.getPointData().setScalars(dataArray);
-  labelmapDataObject.setDimensions(...imageDataObject.dimensions);
-  labelmapDataObject.setSpacing(...imageDataObject.vtkImageData.getSpacing());
-  labelmapDataObject.setOrigin(...imageDataObject.vtkImageData.getOrigin());
-  labelmapDataObject.setDirection(
-    ...imageDataObject.vtkImageData.getDirection()
-  );
-
-  const labelmapColorLUT = segmentationModule.state.colorLutTables[0];
-
-  // Cache the labelmap volume.
-  return { labelmapDataObject, labelmapColorLUT };
-};
-
-async function fetchSegArrayBuffer(url) {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-
-    console.log(`fetching: ${url}`);
-
-    xhr.onload = () => {
-      console.log(`Request returned, status: ${xhr.status}`);
-      if (xhr.status === 200) {
-        resolve(xhr.response);
-      } else {
-        resolve(null);
-      }
-    };
-
-    xhr.onerror = () => {
-      console.log(`Request returned, status: ${xhr.status}`);
-      reject(xhr.responseText);
-    };
-
-    xhr.open('GET', url);
-    xhr.responseType = 'arraybuffer';
-    xhr.send();
-  });
-}
-
-function generate4Up(mrImageDataObject, labelmapDataObject, labelmapColorLUT, color=[1, 0, 0]){
-  const mrImageData = mrImageDataObject.vtkImageData
-  const direction = mrImageData.getDirection();
-  const planes = [
-    direction.slice(0, 3),
-    direction.slice(3, 6),
-    direction.slice(6, 9),
-  ];
-  const orient = planes.map(arr =>
-    arr.findIndex(i => Math.abs(Math.round(i)) === 1)
-  );
-  const planeMap = {
-    Sagittal: {
-      plane: orient.indexOf(0),
-    },
-    Coronal: {
-      plane: orient.indexOf(1),
-    },
-    Axial: {
-      plane: orient.indexOf(2),
-    },
-  };
-  planeMap.Sagittal.flip = planes[planeMap.Sagittal.plane].some(
-    i => Math.round(i) === -1
-  );
-  planeMap.Coronal.flip = planes[planeMap.Coronal.plane].some(
-    i => Math.round(i) === -1
-  );
-  planeMap.Axial.flip = planes[planeMap.Axial.plane].some(
-    i => Math.round(i) === -1
-  );
-
-  const range = mrImageData
-  .getPointData()
-  .getScalars()
-  .getRange();
-
-  const windowWidth = Math.abs(range[1] - range[0]);
-  const windowLevel = range[0] + windowWidth / 2;
-
-  const imageActors = [];
-
-  for (let i = 0; i < 3; i++) {
-    const imageMapper = vtkImageMapper.newInstance();
-    const imageActor = vtkImageSlice.newInstance();
-
-    imageMapper.setInputData(mrImageData);
-    imageActor.setMapper(imageMapper);
-
-    imageActor.getProperty().setColorWindow(windowWidth);
-    imageActor.getProperty().setColorLevel(windowLevel);
-
-    imageActors.push(imageActor);
-  }
-
-  // SEG
-
-  const segRange = labelmapDataObject
-  .getPointData()
-  .getScalars()
-  .getRange();
-
-  const segMapper = vtkMapper.newInstance();
-  const segActor = vtkActor.newInstance();
-
-  const labelmapTransferFunctions = makeLabelMapColorTransferFunction(
-    labelmapColorLUT,
-    color
-  );
-
-  const marchingCube = vtkImageMarchingCubes.newInstance({
-    contourValue: (segRange[0] + segRange[1]) / 3,
-    computeNormals: true,
-    mergePoints: true,
-  });
-  marchingCube.setInputData(labelmapDataObject);
-  segActor.getProperty().setColor(...color);
-  segActor.setMapper(segMapper);
-  segMapper.setInputConnection(marchingCube.getOutputPort());
-
-  // labelmapActors for 2D views
-
-  const outline = vtkImageOutlineFilter.newInstance();
-  // opacity function for the outline filter
-  const labelmapOFun = vtkPiecewiseFunction.newInstance();
-
-  labelmapOFun.addPoint(0, 0); // our background value, 0, will be invisible
-  labelmapOFun.addPoint(0.5, 1);
-  labelmapOFun.addPoint(1, 1);
-
-  const labelmapActors = [];
-
-  outline.setInputData(labelmapDataObject);
-  outline.setSlicingMode(2);
-
-  for (let i = 0; i < 3; i++) {
-    const labelmapMapper = vtkImageMapper.newInstance();
-    const labelmapActor = vtkImageSlice.newInstance();
-
-    labelmapMapper.setInputData(outline.getOutputData());
-    labelmapActor.setMapper(labelmapMapper);
-    labelmapActor.getProperty().setInterpolationType(0);
-
-    labelmapActor
-    .getProperty()
-    .setRGBTransferFunction(labelmapTransferFunctions.cfun);
-
-    labelmapActor.getProperty().setScalarOpacity(labelmapOFun);
-
-    labelmapActors.push(labelmapActor);
-  }
-
-  const labelmapFillOFun = vtkPiecewiseFunction.newInstance();
-
-  labelmapFillOFun.addPoint(0, 0); // our background value, 0, will be invisible
-  labelmapFillOFun.addPoint(0.5, 0.1);
-  labelmapFillOFun.addPoint(1, 0.2);
-
-  const labelmapFillActors = [];
-
-  for (let i = 0; i < 3; i++) {
-    const labelmapFillMapper = vtkImageMapper.newInstance();
-    const labelmapFillActor = vtkImageSlice.newInstance();
-
-    labelmapFillMapper.setInputData(labelmapDataObject);
-    labelmapFillActor.setMapper(labelmapFillMapper);
-    labelmapFillActor.getProperty().setInterpolationType(0);
-
-    labelmapFillActor
-    .getProperty()
-    .setRGBTransferFunction(labelmapTransferFunctions.cfun);
-
-    labelmapFillActor.getProperty().setScalarOpacity(labelmapFillOFun);
-
-    labelmapFillActors.push(labelmapFillActor);
-  }
-
-  return {
-    imageActors,
-    labelmapActors,
-    labelmapFillActors,
-    segActor,
-    labelmapDataObject,
-    labelmapColorLUT,
-    planeMap,
-  }
-}
-
+import cornerstoneTools from 'cornerstone-tools';
+
+const surfaceUrls = [
+  `${window.location.origin}/surfaces/surface_Aorta.obj`,
+  `${window.location.origin}/surfaces/surface_Left Atrium.obj`,
+  `${window.location.origin}/surfaces/surface_Left Ventricle.obj`,
+  `${window.location.origin}/surfaces/surface_Myocardium.obj`,
+  `${window.location.origin}/surfaces/surface_Pulmonary Artery.obj`,
+  `${window.location.origin}/surfaces/surface_Right Atrium.obj`,
+  `${window.location.origin}/surfaces/surface_Right Ventricle.obj`,
+];
+
+const ROOT_URL =
+  window.location.hostname === 'localhost'
+    ? window.location.host
+    : window.location.hostname;
+
+const imageIds = [
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-1-xti1sr.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-10-qax4zz.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-100-szwoiq.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-101-6t2eeg.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-102-m2qm6e.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-103-psrdas.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-104-103n29d.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-105-3xeh1s.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-106-1nwvthp.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-107-l6imk3.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-108-sk79d1.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-109-v4tbbn.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-11-cmxd73.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-110-46hvau.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-111-18km168.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-112-bf4eb2.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-113-19rxw6k.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-114-1pe15m8.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-115-1igroky.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-116-6rztq.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-117-1tjyjt7.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-118-19m59at.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-119-102af71.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-12-1036j19.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-120-cyg3p4.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-121-19pcpr9.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-122-agucov.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-123-10g2y5l.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-124-1lx60i4.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-125-lgvfkq.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-126-m0hirs.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-127-xmrxr0.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-128-uwe9sa.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-129-k3qrmm.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-13-1qa29p8.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-130-trdatw.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-131-lxrmo0.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-132-1q2uwfu.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-133-1kcom5.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-134-mwc0yc.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-135-gyxs2q.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-136-2d6tqw.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-137-t8vmd1.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-138-1tykwgc.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-139-1abif2v.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-14-5n78vk.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-140-mzm374.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-141-1fcmqvm.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-142-13jnklc.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-143-k0xr1.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-144-ypro80.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-145-1iyr520.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-146-a0wkd0.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-147-1rva8pi.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-148-tgawwc.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-149-12pofjz.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-15-q7jnl2.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-150-1b1o531.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-151-1iymcj3.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-152-oh3iur.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-153-nk9xoj.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-154-1ohnjzd.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-155-pz0ohm.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-156-15qdlir.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-157-11no33w.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-158-m8e1so.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-159-147b42z.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-16-3qatvr.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-160-1r8vy89.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-161-1n7u4ep.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-162-1hnm4zh.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-163-1b13879.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-164-l3ghci.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-165-12bo710.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-166-1icqofu.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-167-111e899.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-168-1kquaph.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-169-11yreg6.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-17-xl6tgk.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-170-108pjjs.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-171-phpux5.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-172-1so5ysb.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-173-1yfnfuz.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-174-kietcx.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-175-18inalx.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-176-1odv8pp.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-177-nblt37.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-178-1kado0p.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-179-2jz3ex.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-18-1v0jdw2.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-180-6i4q9s.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-181-mkftki.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-182-99fayv.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-183-sqktkl.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-184-6sr7wg.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-185-ker8qo.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-186-1tv0s0s.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-187-18db6x9.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-188-18ma2p9.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-189-1xtj1ky.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-19-ukv5zg.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-190-otkwrb.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-191-1j9v7z2.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-192-psogr3.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-193-mzteqs.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-194-umd138.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-195-ksdhmj.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-196-912ibd.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-197-1awg43l.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-198-a5knxz.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-199-185hqqa.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-2-f0t103.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-20-1rfsnmw.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-200-1jg8zvb.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-201-89e3ze.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-202-11s9x9o.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-203-1a9v8sc.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-204-t8tszj.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-205-1o6arag.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-206-te0z95.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-207-1usk06x.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-208-zpfo85.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-209-1i7wi4o.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-21-mvc5b1.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-210-1as62ao.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-211-151czg3.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-212-1s6tbri.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-213-1afrn1o.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-214-12in0dn.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-215-19r2l9y.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-216-1drten.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-217-1jfpmpz.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-218-afxsn9.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-219-1tub4fw.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-22-1ikbopl.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-220-cfksyw.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-221-16pfp9x.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-222-1gy99bt.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-223-7u9z9w.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-224-lpkfle.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-225-znytrk.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-226-jqyb56.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-227-5lxt9x.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-228-4tw24d.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-229-1m81kvp.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-23-zbn0rc.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-230-18f1xmu.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-231-1gfrphk.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-232-1lj9ay2.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-233-6y8d12.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-234-egxw3p.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-235-imsljv.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-236-brcxn3.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-237-123wx77.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-238-3wpmdf.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-239-1ichpuk.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-24-15pcmq7.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-240-1boe9oz.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-241-1rt291.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-242-13rbjp5.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-243-1qh0k0w.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-244-1jv06vb.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-245-18m6vbh.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-246-11lh2zu.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-247-gy0c8u.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-248-81dbte.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-249-pgne0t.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-25-uao0gf.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-250-1vvrjbq.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-251-1rvj4f3.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-252-1qjuf6b.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-253-6lngip.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-254-1pwuzii.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-255-1v3ljwo.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-256-jbf5y0.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-257-1qi01ua.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-258-j9dpp0.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-259-1p0f26t.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-26-17bjzae.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-260-nru7dx.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-261-do7n7m.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-262-12118nk.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-263-1mcsc98.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-264-1txmlwx.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-265-1wfji9s.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-266-o815ez.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-267-1mtydig.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-268-1e8zfgb.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-269-14bv469.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-27-3qktk2.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-270-1a9y4bi.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-271-dgh2wp.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-272-1uei2ft.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-273-1ogo6t2.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-274-xj34tt.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-275-1ck8sob.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-276-1plurwj.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-277-om58g1.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-278-1avpq89.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-279-1v5tv9n.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-28-4jmfyo.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-280-l4d6hm.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-281-8xiou.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-282-1gcl0m7.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-283-yieir.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-284-zu4tfj.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-285-1cr9ilz.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-286-jwacqv.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-287-iyaark.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-288-giaxbm.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-289-1vd38v6.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-29-1yjaccf.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-290-ixgr85.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-291-1srqaoa.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-292-1kksrtl.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-293-10wg6st.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-294-ta4c3k.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-295-1b4u0fz.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-296-xii8wo.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-297-1upnaj4.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-298-wtyjcr.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-299-mgsa2b.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-3-xze0h3.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-30-zd18fo.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-300-10q1yxz.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-301-1w5yanh.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-302-agrgld.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-303-uhf3xx.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-304-1otrbbz.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-305-5t02lq.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-306-wjl9e5.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-307-5q4lak.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-308-1u2w477.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-309-1yvpbsw.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-31-uxra4d.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-310-fuhi22.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-311-f7ole8.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-312-8bo0o5.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-313-hkfrzh.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-314-sme71x.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-315-1kd98co.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-316-1xfs4hc.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-317-1jakqd1.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-318-q8t0kb.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-319-p0yi8e.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-32-166kjya.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-320-10wzs65.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-321-laznsu.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-322-lm0ymt.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-323-362fkj.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-324-lnr2qh.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-325-1eijlo0.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-326-1dtfyru.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-327-w0wl26.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-328-1kjrd92.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-329-17lf6bh.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-33-54o5zp.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-330-d0j0r0.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-331-19som7o.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-332-1o2oqnf.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-333-1sve5w9.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-334-s8wlzw.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-335-omn4ze.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-336-vyr0jh.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-337-1n3jeh3.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-338-sjobgd.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-339-ql6wlo.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-34-9xvo3r.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-340-18pfhpb.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-341-8m6e65.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-342-sowpqp.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-343-1mz2de7.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-344-ibjx9t.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-345-nfmnfz.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-346-1w3mkn4.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-347-fojket.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-348-bvnap5.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-349-1jmn5mx.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-35-kc8gan.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-350-djp58c.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-351-1set78l.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-352-8jugmc.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-353-18mr6sl.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-354-wrf8r3.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-355-1ynx792.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-356-nfrs5r.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-357-1l1mkrm.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-358-8xmpna.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-359-190stpe.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-36-s8ja98.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-360-1mxx9wn.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-361-1m7dxe.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-362-8cw41g.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-363-179aobw.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-364-4337bp.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-365-9jablz.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-366-19ddu1l.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-367-1sdfwe2.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-368-8un6eg.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-369-ziw5pb.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-37-2ajaw4.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-370-123x6gh.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-371-1700923.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-372-hvewqe.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-38-mzf316.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-39-15v38ad.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-4-svdi5j.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-40-1pq3r46.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-41-1su0t0h.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-42-12t8cry.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-43-ebdg5n.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-44-1n7bz9c.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-45-9y97d.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-46-yppu43.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-47-1xh093a.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-48-pbwuby.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-49-1vh7fzs.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-5-12k29eb.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-50-og01v7.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-51-1q7e03f.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-52-m07zdc.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-53-kj5c6v.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-54-1lj4udq.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-55-1jiy7n4.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-56-1cif064.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-57-pamlz0.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-58-eehjtv.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-59-3lmp6n.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-6-rlsw88.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-60-kqff94.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-61-12rj90n.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-62-tsfa70.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-63-1d05n0k.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-64-1i92gla.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-65-1yx1y4.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-66-vqft3x.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-67-i86gj.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-68-1o0tecw.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-69-1vyiuci.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-7-ndpz6k.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-70-l9b7u.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-71-1i0vir5.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-72-i4amvj.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-73-1orhdq0.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-74-19wrx6s.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-75-114mrif.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-76-1t3soi.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-77-1qyhkq7.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-78-15osrd5.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-79-bk3kay.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-8-tz6zhn.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-80-z1k8gy.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-81-1jg01lu.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-82-1sqdouo.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-83-4fv4hf.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-84-1xn2uxx.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-85-tmisif.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-86-1tqibcv.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-87-169wfxd.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-88-1bckbiq.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-89-6r3fy8.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-9-212ii0.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-90-pswvq7.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-91-1lvu611.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-92-5am5w3.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-93-1o4jkxk.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-94-16vrheo.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-95-1onbxkg.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-96-p8trup.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-97-194dv4d.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-98-16a3bgi.dcm`,
+  `dicomweb://${ROOT_URL}/background/1.3.6.1.4.1.14519.5.2.1.4334.1501.119531128953610472040332469413-5-99-g110z9.dcm`,
+];
 
 class VTK4UPExample extends Component {
-  state = {
-    imageMappers: [],
-  };
+  state = {};
 
   async componentDidMount() {
     this.apis = [];
 
-    const imageUrls = []
-    for (let i = 0; i < 88; i++){
-      imageUrls.push(`${dicomPath}/${i}.dcm`)
-    }
-
-    const ids = await getImageIds(imageUrls);
-
-  // let mrImageIds = imageIds.filter(imageId =>
-  //      imageId.includes(mrSeriesInstanceUID)
-  //    );
-
-    // Sort the imageIds so the SEG is allocated correctly.
-
-    ids.sort((a, b) => {
-      const spotA = Number(a.image.data.string('x00201041'))
-      const spotB = Number(b.image.data.string('x00201041'))
-
-      return spotA - spotB
-    })
-
-    const images = []
-    const mrImageIds = []
-    ids.forEach((id, i) => {
-      images.push(id.image)
-      mrImageIds.push(id.id)
+    // Pre-retrieve the images for demo purposes
+    // Note: In a real application you wouldn't need to do this
+    // since you would probably have the image metadata ahead of time.
+    // In this case, we preload the images so the WADO Image Loader can
+    // read and store all of their metadata and subsequently the 'getImageData'
+    // can run properly (it requires metadata).
+    const promises = imageIds.map(imageId => {
+      return cornerstone.loadAndCacheImage(imageId);
     });
 
-
-    const mrImageDataObject = loadDataset(images);
-
-    const segs = []
-    segs.push(await fetchSegArrayBuffer(segURL))
-    segs.push(await fetchSegArrayBuffer(seg2URL))
-
-    const volumes = []
-    for (const seg of segs){
-      volumes.push(await generateSegVolume(mrImageDataObject, seg, mrImageIds))
-    }
-
-    const fourUps = []
-    // volumes.forEach(({labelmapDataObject, labelmapColorLUT}, i) => {
-    //   const fourUp = generate4Up(mrImageDataObject, labelmapDataObject, labelmapColorLUT)
-    //   fourUps.push(fourUp)
-    // });
-
-    fourUps.push(generate4Up(mrImageDataObject, volumes[0].labelmapDataObject, volumes[0].labelmapColorLUT))
-    fourUps.push(generate4Up(mrImageDataObject, volumes[1].labelmapDataObject, volumes[1].labelmapColorLUT, [0, 1, 0]))
-
-    const {imageActors, labelmapDataObject, labelmapColorLUT, planeMap} = fourUps[0]
-
-    const labelmapActors = {}
-    const ijk = ['I', 'J', 'K']
-    ijk.forEach((key, index) => {
-      labelmapActors[key] = fourUps.map(fourUp => fourUp.labelmapActors[index])
-      labelmapActors[key + 'Fill'] = fourUps.map(fourUp => fourUp.labelmapFillActors[index])
-    })
-
-    const marchingCubesActors = fourUps.map(fourUp => fourUp.segActor)
-
-    // MR
-    /////// Replace with image mapping. ///////
-
-    // Use one dataset, and 3 actors/mappers for the 3 different views
-
-    this.setState({
-      imageActors: {
-        I: imageActors[0],
-        J: imageActors[1],
-        K: imageActors[2],
-      },
-      labelmapActors: labelmapActors,
-      marchingCubesActors,
-      paintFilterLabelMapImageData: labelmapDataObject,
-      paintFilterBackgroundImageData: mrImageDataObject.vtkImageData,
-      labelmapColorLUT,
-      planeMap,
+    const imageDataObject = await Promise.all(promises).then(() => {
+      const displaySetInstanceUid = '12345';
+      return getImageData(imageIds, displaySetInstanceUid);
     });
+
+    const loadSurface = async function(obj, i) {
+      const mtl = obj.replace(/\.obj$/, '.mtl');
+      const reader = vtkOBJReader.newInstance({ splitMode: 'usemtl' });
+      const materialsReader = vtkMTLReader.newInstance();
+      await materialsReader.setUrl(mtl);
+      await reader.setUrl(obj);
+      const curPolyData = reader.getOutputData();
+      const mapper = vtkMapper.newInstance();
+      const actor = vtkActor.newInstance();
+
+      actor.setMapper(mapper);
+      mapper.setInputData(curPolyData);
+      //materialsReader.applyMaterialToActor(polyData.get('name').name, actor);
+      const material = materialsReader.getMaterial(
+        curPolyData.get('name').name
+      );
+      const opacity = material.d ? Number(material.d) : 1;
+      const color = material.Kd ? material.Kd.map(i => Number(i)) : [1, 1, 1];
+      actor.getProperty().setColor(...color);
+      actor.getProperty().setOpacity(opacity);
+
+      const { surfaceActors, polyData } = this.state;
+      let newSurfaceActors = [];
+      let newPolyData = [];
+      if (surfaceActors) {
+        newSurfaceActors = [...surfaceActors];
+      }
+      newSurfaceActors.push(actor);
+      if (polyData) {
+        newPolyData = [...polyData];
+      }
+      newPolyData.push(curPolyData);
+
+      return { i, polyData: curPolyData, actor, color, opacity };
+    }.bind(this);
+
+    const onAllPixelDataInsertedCallback = () => {
+      // Use one dataset, and 3 actors/mappers for the 3 different views
+      // background image
+      const imageData = imageDataObject.vtkImageData;
+
+      const direction = imageData.getDirection();
+      const planes = [
+        direction.slice(0, 3),
+        direction.slice(3, 6),
+        direction.slice(6, 9),
+      ];
+      const orient = planes.map(arr =>
+        arr.findIndex(i => Math.abs(Math.round(i)) === 1)
+      );
+      const planeMap = {
+        Sagittal: {
+          plane: orient.indexOf(0),
+        },
+        Coronal: {
+          plane: orient.indexOf(1),
+        },
+        Axial: {
+          plane: orient.indexOf(2),
+        },
+      };
+      planeMap.Sagittal.flip = planes[planeMap.Sagittal.plane].some(
+        i => Math.round(i) === -1
+      );
+      planeMap.Coronal.flip = planes[planeMap.Coronal.plane].some(
+        i => Math.round(i) === -1
+      );
+      planeMap.Axial.flip = planes[planeMap.Axial.plane].some(
+        i => Math.round(i) === -1
+      );
+
+      const range = imageData
+        .getPointData()
+        .getScalars()
+        .getRange();
+
+      const windowWidth = Math.abs(range[1] - range[0]);
+      const windowLevel = range[0] + windowWidth / 2;
+
+      const imageActors = [];
+
+      for (let i = 0; i < 3; i++) {
+        const imageMapper = vtkImageMapper.newInstance();
+        const imageActor = vtkImageSlice.newInstance();
+
+        imageMapper.setInputData(imageData);
+        imageActor.setMapper(imageMapper);
+
+        imageActor.getProperty().setColorWindow(windowWidth);
+        imageActor.getProperty().setColorLevel(windowLevel);
+
+        imageActors.push(imageActor);
+      }
+
+      const surfaceActorPromises = surfaceUrls.map(loadSurface);
+      Promise.all(surfaceActorPromises).then(surfaceData => {
+        const surfaceActors = [];
+        const polyData = [];
+        const colors = [];
+        surfaceData.forEach(map => {
+          surfaceActors.push(map.actor);
+          polyData.push(map.polyData);
+          colors.push([...map.color, map.opacity]);
+        });
+        this.setState({
+          imageActors: {
+            I: imageActors[0],
+            J: imageActors[1],
+            K: imageActors[2],
+          },
+          surfaceActors,
+          polyData,
+          colors,
+          displayCrosshairs: true,
+          planeMap,
+        });
+      });
+    };
+
+    imageDataObject.onAllPixelDataInserted(onAllPixelDataInsertedCallback);
+    loadImageData(imageDataObject);
   }
 
   storeApi = (viewportIndex, type) => {
@@ -476,93 +561,59 @@ class VTK4UPExample extends Component {
       const apis = this.apis;
       apis[viewportIndex] = api;
 
-
       const istyle =
         type === '2D'
           ? vtkInteractorStyle2D4UpCrosshairs.newInstance()
-          : vtkInteractorStyle3D4UpCrosshairs.newInstance()
+          : vtkInteractorStyle3D4UpCrosshairs.newInstance();
 
-      // add crosshair interactor
+      // add istyle
       api.setInteractorStyle({
         istyle,
-        configuration: { apis, apiIndex: viewportIndex},
+        configuration: { apis, apiIndex: viewportIndex },
       });
-
-      // // Its up to the layout manager of an app to know how many viewports are being created.
-      // if (apis.length === 4) {
-      //   const targetApi = apis[0];
-      //   const targetIstyle = targetApi.genericRenderWindow
-      //     .getRenderWindow()
-      //     .getInteractor()
-      //     .getInteractorStyle();
-      //   targetIstyle.resetCrosshairs();
-      // }
     };
   };
 
   toggleCrosshairs = () => {
-    const apis = this.apis;
+    const { displayCrosshairs } = this.state;
+    this.setState({ displayCrosshairs: !displayCrosshairs }, () => {
+      this.apis.forEach((api, i) => {
+        const istyle = api.genericRenderWindow
+          .getRenderWindow()
+          .getInteractor()
+          .getInteractorStyle();
 
-    apis.forEach((api, i) => {
-      const istyle = api
-      .genericRenderWindow
-      .getRenderWindow()
-      .getInteractor()
-      .getInteractorStyle()
-
-      istyle.toggleCrosshairs()
-
-    });
-  };
-
-  toggleCrosshairSlices = e => {
-    const apis = this.apis;
-
-    apis.forEach((api, i) => {
-      if (api.type == 'VIEW3D'){
-        const istyle = api
-        .genericRenderWindow
-        .getRenderWindow()
-        .getInteractor()
-        .getInteractorStyle()
-
-        istyle.toggleCrosshairSlices()
-      }
+        istyle.toggleCrosshairs();
+      });
     });
   };
 
   render() {
-    if (
-      !this.state.imageActors ||
-      !this.state.labelmapActors ||
-      !this.state.marchingCubesActors ||
-      !this.state.marchingCubesActors.length
-    ) {
+    if (!this.state.imageActors || !this.state.polyData) {
       return <h4>Loading...</h4>;
     }
 
     return (
       <>
         <div className="row">
-          <table style={{margin:'20px'}}>
-            <tbody style={{margin:'20px'}}>
-              <tr>
-                <th><button type='checkbox' onClick={this.toggleCrosshairs}>Toggle Crosshairs</button></th>
-              </tr>
-              <tr>
-                <th><button type='checkbox' onClick={this.toggleCrosshairSlices}>Toggle Crosshair Slices</button></th>
-              </tr>
-            </tbody>
-          </table>
+          <div className="col-xs-4">
+            <p>This example demonstrates a 4up.</p>
+          </div>
+          <div className="col-xs-4">
+            <p>Click bellow to toggle crosshairs on/off.</p>
+            <button onClick={this.toggleCrosshairs}>
+              {this.state.displayCrosshairs
+                ? 'Hide Crosshairs'
+                : 'Show Crosshairs'}
+            </button>
+          </div>
         </div>
         <div className="row">
           <div className="col-sm-4">
             <View2DImageMapper
-              actors={[this.state.imageActors.I]}
-              labelmapActors={[
-                ...this.state.labelmapActors.IFill,
-                ...this.state.labelmapActors.I,
-              ]}
+              actor={this.state.imageActors.I}
+              polyData={this.state.polyData}
+              colors={this.state.colors}
               planeMap={this.state.planeMap}
               onCreated={this.storeApi(0, '2D')}
               orientation={'Sagittal'}
@@ -570,11 +621,9 @@ class VTK4UPExample extends Component {
           </div>
           <div className="col-sm-4">
             <View2DImageMapper
-              actors={[this.state.imageActors.J]}
-              labelmapActors={[
-                ...this.state.labelmapActors.JFill,
-                ...this.state.labelmapActors.J,
-              ]}
+              actor={this.state.imageActors.J}
+              polyData={this.state.polyData}
+              colors={this.state.colors}
               planeMap={this.state.planeMap}
               onCreated={this.storeApi(1, '2D')}
               orientation={'Coronal'}
@@ -584,20 +633,18 @@ class VTK4UPExample extends Component {
         <div className="row">
           <div className="col-sm-4">
             <View2DImageMapper
-              actors={[this.state.imageActors.K]}
-              labelmapActors={[
-                ...this.state.labelmapActors.KFill,
-                ...this.state.labelmapActors.K,
-              ]}
+              actor={this.state.imageActors.K}
+              polyData={this.state.polyData}
+              colors={this.state.colors}
               planeMap={this.state.planeMap}
               onCreated={this.storeApi(2, '2D')}
               orientation={'Axial'}
             />
           </div>
-          {/** 3D  View*/}
+          {/** 3D  View */}
           <div className="col-sm-4">
-            <View3DMarchingCubes
-              actors={this.state.marchingCubesActors}
+            <View3DSurfaceMC
+              surfaceActors={this.state.surfaceActors}
               planeMap={this.state.planeMap}
               onCreated={this.storeApi(3, '3D')}
             />

@@ -2,6 +2,8 @@ import macro from 'vtk.js/Sources/macro';
 import vtkInteractorStyleTrackballCamera from 'vtk.js/Sources/Interaction/Style/InteractorStyleTrackballCamera';
 import vtkCoordinate from 'vtk.js/Sources/Rendering/Core/Coordinate';
 import VTKAxis from './VTKAxis';
+import Constants from 'vtk.js/Sources/Rendering/Core/InteractorStyle/Constants';
+const { States } = Constants;
 
 function vtkInteractorStyle2DCrosshairs(publicAPI, model) {
   //Set classname
@@ -111,6 +113,24 @@ function vtkInteractorStyle2DCrosshairs(publicAPI, model) {
     model.movingCrosshairs = false;
 
     superAPI.handleLeftButtonRelease(callData);
+  };
+
+  publicAPI.handleRightButtonPress = callData => {
+    // zoom
+    model.previousPosition = callData.position;
+    publicAPI.startDolly();
+  };
+
+  publicAPI.handleRightButtonRelease = callData => {
+    switch (model.state) {
+      case States.IS_PAN:
+        publicAPI.endPan();
+        break;
+
+      default:
+        publicAPI.endDolly();
+        break;
+    }
   };
 
   publicAPI.handleMouseMove = callData => {
