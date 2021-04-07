@@ -5,10 +5,6 @@ import vtkPointPicker from 'vtk.js/Sources/Rendering/Core/PointPicker';
 import vtkOpenGLHardwareSelector from 'vtk.js/Sources/Rendering/OpenGL/HardwareSelector';
 import VTKAxis from './VTKAxis';
 
-import vtkActor from 'vtk.js/Sources/Rendering/Core/Actor';
-import vtkSphereSource from 'vtk.js/Sources/Filters/Sources/SphereSource';
-import vtkMapper from 'vtk.js/Sources/Rendering/Core/Mapper';
-
 function vtkInteractorStyle3DCrosshairs(publicAPI, model) {
   //Set classname
   model.classHierarchy.push('vtkInteractorStyle3DCrosshairs');
@@ -22,43 +18,19 @@ function vtkInteractorStyle3DCrosshairs(publicAPI, model) {
 
   publicAPI.moveCrosshairs = callData => {
     const api = model.apis[model.apiIndex];
-
     const mousePos = callData.position;
-
-    const actors = publicAPI.getActors();
     const renderer = api.genericRenderWindow.getRenderer();
-    const screenPoint = [mousePos.x, mousePos.y, 0];
 
     const hws = publicAPI.getHardwareSelector();
 
     if (hws.captureBuffers()) {
+      //Use HardwareSelector to get in world coordinates from screen coordinates
       const selection = hws.generateSelection(
         mousePos.x,
         mousePos.y,
         mousePos.x,
         mousePos.y
       );
-
-      console.log(selection);
-      console.log(selection[0]);
-      console.log(selection[0].getProperties());
-      console.log(selection[0].getProperties().worldPosition);
-      console.log(selection[0].getBounds());
-      const selection2 = hws.select(
-        mousePos.x,
-        mousePos.y,
-        mousePos.x,
-        mousePos.y
-      );
-      console.log(selection2);
-      console.log(selection2[0].getProperties());
-
-      selection[0]
-        .getProperties()
-        .prop.getProperty()
-        .setColor(1, 1, 0);
-      console.log(selection[0].getProperties().prop.getPosition());
-
       hws.releasePixBuffers();
 
       renderer.getRenderWindow().render();
@@ -74,33 +46,6 @@ function vtkInteractorStyle3DCrosshairs(publicAPI, model) {
         istyle.updateCrosshairs(worldPos);
       });
     }
-
-    // //pick a point on the surface of the 3D model that corresponds to the on screen position where the mouse was pressed
-    // const picker = vtkPointPicker.newInstance();
-    // // picker.setTolerance(0);
-    // picker.setPickFromList(true);
-    // picker.setPickList(actors);
-    //
-    // const picked = picker.pick(screenPoint, renderer);
-    //
-    // const pickedPositions = picker.getPickedPositions();
-    //
-    // let worldPos = pickedPositions[0];
-    //
-    // //calculate the closest of the picked positions if there are multiple
-    // if (pickedPositions.length > 1) {
-    //   const distances = pickedPositions.map(pos => {
-    //     const cam = renderer.getActiveCamera();
-    //     const camPos = cam.getPosition();
-    //
-    //     const dist = Math.sqrt(
-    //       (camPos[0] - pos[0]) ** 2 +
-    //         (camPos[1] - pos[1]) ** 2 +
-    //         (camPos[2] - pos[2]) ** 2
-    //     );
-    //
-    //     return dist;
-    //   });
   };
 
   publicAPI.updateCrosshairs = worldPos => {
@@ -126,13 +71,6 @@ function vtkInteractorStyle3DCrosshairs(publicAPI, model) {
         Math.abs(bounds[3] - bounds[2]),
         Math.abs(bounds[5] - bounds[4])
       ) * 2;
-
-    const sphere = vtkSphereSource.newInstance({ radius: 100 });
-    const sactor = vtkActor.newInstance();
-    const smapper = vtkMapper.newInstance();
-    smapper.setInputConnection(sphere.getOutputPort());
-    sactor.setMapper(smapper);
-    renderer.addActor(sactor);
 
     //get default position of crosshairs
     const pos = actor.getCenter();
