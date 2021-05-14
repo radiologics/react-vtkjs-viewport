@@ -6,7 +6,8 @@ import {
   View3DMarchingCubes,
   vtkInteractorStyle3D4UpCrosshairs,
   vtkInteractorStyle2D4UpCrosshairs,
-  vtkInteractorStyleImagePanZoom,} from '@vtk-viewport'
+  vtkInteractorStyleImagePanZoom,
+} from '@vtk-viewport';
 import vtkImageMapper from 'vtk.js/Sources/Rendering/Core/ImageMapper';
 import vtkImageSlice from 'vtk.js/Sources/Rendering/Core/ImageSlice';
 import vtkImageMarchingCubes from 'vtk.js/Sources/Filters/General/ImageMarchingCubes';
@@ -22,41 +23,44 @@ import vtkImageOutlineFilter from 'vtk.js/Sources/Filters/General/ImageOutlineFi
 
 const segmentationModule = cornerstoneTools.getModule('segmentation');
 
-
 // MR  1.3.12.2.1107.5.2.32.35162.1999123112191238897317963.0.0.0
 // SEG 	1.2.276.0.7230010.3.1.3.296485376.8.1542816659.201008
 
 const segURL = `${window.location.origin}/dicoms/brainSeg.dcm`;
 const seg2URL = `${window.location.origin}/dicoms/rightEyeSeg.dcm`;
-const dicomPath = `${window.location.origin}/dicoms`
+const dicomPath = `${window.location.origin}/dicoms`;
 
 // const segURL =
 //   'https://server.dcmjs.org/dcm4chee-arc/aets/DCM4CHEE/rs/studies/1.3.12.2.1107.5.2.32.35162.30000015050317233592200000046/series/1.2.276.0.7230010.3.1.3.296485376.8.1542816659.201008/instances/1.2.276.0.7230010.3.1.4.296485376.8.1542816659.201009';
 
 function loadDataset(images) {
-  const width = images[0].width
-  const height = images[0].height
-  const depth = images.length
+  const width = images[0].width;
+  const height = images[0].height;
+  const depth = images.length;
 
-  const spacingXZ = images[0].data.string('x00280030')
-  const spacingX = spacingXZ.split('\\')[0]
-  const spacingZ = spacingXZ.split('\\')[1]
-  const spacingY = images[0].data.string('x00180050')
+  const spacingXZ = images[0].data.string('x00280030');
+  const spacingX = spacingXZ.split('\\')[0];
+  const spacingZ = spacingXZ.split('\\')[1];
+  const spacingY = images[0].data.string('x00180050');
 
-  var pixelDatas = images.map(image => {return image.getPixelData()})
-  var pixelData = []
-  pixelDatas.map(data => {pixelData = pixelData.concat([...data])})
-  var pixelData = new Uint16Array(pixelData)
+  var pixelDatas = images.map(image => {
+    return image.getPixelData();
+  });
+  var pixelData = [];
+  pixelDatas.map(data => {
+    pixelData = pixelData.concat([...data]);
+  });
+  var pixelData = new Uint16Array(pixelData);
 
   const dataArray = vtkDataArray.newInstance({
-    values: pixelData
-  })
-  const imageData = vtkImageData.newInstance()
-  imageData.getPointData().setScalars(dataArray)
-  imageData.setDimensions([width, height, depth])
-  imageData.setSpacing(Number(spacingX), Number(spacingZ), Number(spacingY))
+    values: pixelData,
+  });
+  const imageData = vtkImageData.newInstance();
+  imageData.getPointData().setScalars(dataArray);
+  imageData.setDimensions([width, height, depth]);
+  imageData.setSpacing(Number(spacingX), Number(spacingZ), Number(spacingY));
 
-  return {vtkImageData: imageData, dimensions: [width, height, depth]}
+  return { vtkImageData: imageData, dimensions: [width, height, depth] };
 }
 
 function makeLabelMapColorTransferFunction(lablemapColorLUT, color) {
@@ -132,18 +136,21 @@ function createStudyImageIds(baseUrl, studySearchOptions) {
   });
 }
 
-async function getImageIds(urls){
-  const ids = []
-  for (let i = 0; i < urls.length; i++){
-    const file = await fetch(urls[i])
-    const blob = await file.blob()
-    const id = await window.cornerstoneWADOImageLoader.wadouri.fileManager.add(blob)
-    const image = await window.cornerstone.loadAndCacheImage(id)
-    const metaDataProvider = window.cornerstoneWADOImageLoader.wadouri.metaData.metaDataProvider
-    cornerstone.metaData.addProvider(metaDataProvider)
-    ids.push({image, id})
+async function getImageIds(urls) {
+  const ids = [];
+  for (let i = 0; i < urls.length; i++) {
+    const file = await fetch(urls[i]);
+    const blob = await file.blob();
+    const id = await window.cornerstoneWADOImageLoader.wadouri.fileManager.add(
+      blob
+    );
+    const image = await window.cornerstone.loadAndCacheImage(id);
+    const metaDataProvider =
+      window.cornerstoneWADOImageLoader.wadouri.metaData.metaDataProvider;
+    cornerstone.metaData.addProvider(metaDataProvider);
+    ids.push({ image, id });
   }
-  return ids
+  return ids;
 }
 
 const generateSegVolume = async (
@@ -228,8 +235,13 @@ async function fetchSegArrayBuffer(url) {
   });
 }
 
-function generate4Up(mrImageDataObject, labelmapDataObject, labelmapColorLUT, color=[1, 0, 0]){
-  const mrImageData = mrImageDataObject.vtkImageData
+function generate4Up(
+  mrImageDataObject,
+  labelmapDataObject,
+  labelmapColorLUT,
+  color = [1, 0, 0]
+) {
+  const mrImageData = mrImageDataObject.vtkImageData;
   const direction = mrImageData.getDirection();
   const planes = [
     direction.slice(0, 3),
@@ -261,9 +273,9 @@ function generate4Up(mrImageDataObject, labelmapDataObject, labelmapColorLUT, co
   );
 
   const range = mrImageData
-  .getPointData()
-  .getScalars()
-  .getRange();
+    .getPointData()
+    .getScalars()
+    .getRange();
 
   const windowWidth = Math.abs(range[1] - range[0]);
   const windowLevel = range[0] + windowWidth / 2;
@@ -286,9 +298,9 @@ function generate4Up(mrImageDataObject, labelmapDataObject, labelmapColorLUT, co
   // SEG
 
   const segRange = labelmapDataObject
-  .getPointData()
-  .getScalars()
-  .getRange();
+    .getPointData()
+    .getScalars()
+    .getRange();
 
   const segMapper = vtkMapper.newInstance();
   const segActor = vtkActor.newInstance();
@@ -332,8 +344,8 @@ function generate4Up(mrImageDataObject, labelmapDataObject, labelmapColorLUT, co
     labelmapActor.getProperty().setInterpolationType(0);
 
     labelmapActor
-    .getProperty()
-    .setRGBTransferFunction(labelmapTransferFunctions.cfun);
+      .getProperty()
+      .setRGBTransferFunction(labelmapTransferFunctions.cfun);
 
     labelmapActor.getProperty().setScalarOpacity(labelmapOFun);
 
@@ -357,8 +369,8 @@ function generate4Up(mrImageDataObject, labelmapDataObject, labelmapColorLUT, co
     labelmapFillActor.getProperty().setInterpolationType(0);
 
     labelmapFillActor
-    .getProperty()
-    .setRGBTransferFunction(labelmapTransferFunctions.cfun);
+      .getProperty()
+      .setRGBTransferFunction(labelmapTransferFunctions.cfun);
 
     labelmapFillActor.getProperty().setScalarOpacity(labelmapFillOFun);
 
@@ -373,11 +385,10 @@ function generate4Up(mrImageDataObject, labelmapDataObject, labelmapColorLUT, co
     labelmapDataObject,
     labelmapColorLUT,
     planeMap,
-  }
+  };
 }
 
-
-class VTK4UPExample extends Component {
+class VTK4UPCrosshairsExample extends Component {
   state = {
     imageMappers: [],
   };
@@ -385,64 +396,83 @@ class VTK4UPExample extends Component {
   async componentDidMount() {
     this.apis = [];
 
-    const imageUrls = []
-    for (let i = 0; i < 88; i++){
-      imageUrls.push(`${dicomPath}/${i}.dcm`)
+    const imageUrls = [];
+    for (let i = 0; i < 88; i++) {
+      imageUrls.push(`${dicomPath}/${i}.dcm`);
     }
 
     const ids = await getImageIds(imageUrls);
 
-  // let mrImageIds = imageIds.filter(imageId =>
-  //      imageId.includes(mrSeriesInstanceUID)
-  //    );
+    // let mrImageIds = imageIds.filter(imageId =>
+    //      imageId.includes(mrSeriesInstanceUID)
+    //    );
 
     // Sort the imageIds so the SEG is allocated correctly.
 
     ids.sort((a, b) => {
-      const spotA = Number(a.image.data.string('x00201041'))
-      const spotB = Number(b.image.data.string('x00201041'))
+      const spotA = Number(a.image.data.string('x00201041'));
+      const spotB = Number(b.image.data.string('x00201041'));
 
-      return spotA - spotB
-    })
-
-    const images = []
-    const mrImageIds = []
-    ids.forEach((id, i) => {
-      images.push(id.image)
-      mrImageIds.push(id.id)
+      return spotA - spotB;
     });
 
+    const images = [];
+    const mrImageIds = [];
+    ids.forEach((id, i) => {
+      images.push(id.image);
+      mrImageIds.push(id.id);
+    });
 
     const mrImageDataObject = loadDataset(images);
 
-    const segs = []
-    segs.push(await fetchSegArrayBuffer(segURL))
-    segs.push(await fetchSegArrayBuffer(seg2URL))
+    const segs = [];
+    segs.push(await fetchSegArrayBuffer(segURL));
+    segs.push(await fetchSegArrayBuffer(seg2URL));
 
-    const volumes = []
-    for (const seg of segs){
-      volumes.push(await generateSegVolume(mrImageDataObject, seg, mrImageIds))
+    const volumes = [];
+    for (const seg of segs) {
+      volumes.push(await generateSegVolume(mrImageDataObject, seg, mrImageIds));
     }
 
-    const fourUps = []
+    const fourUps = [];
     // volumes.forEach(({labelmapDataObject, labelmapColorLUT}, i) => {
     //   const fourUp = generate4Up(mrImageDataObject, labelmapDataObject, labelmapColorLUT)
     //   fourUps.push(fourUp)
     // });
 
-    fourUps.push(generate4Up(mrImageDataObject, volumes[0].labelmapDataObject, volumes[0].labelmapColorLUT))
-    fourUps.push(generate4Up(mrImageDataObject, volumes[1].labelmapDataObject, volumes[1].labelmapColorLUT, [0, 1, 0]))
+    fourUps.push(
+      generate4Up(
+        mrImageDataObject,
+        volumes[0].labelmapDataObject,
+        volumes[0].labelmapColorLUT
+      )
+    );
+    fourUps.push(
+      generate4Up(
+        mrImageDataObject,
+        volumes[1].labelmapDataObject,
+        volumes[1].labelmapColorLUT,
+        [0, 1, 0]
+      )
+    );
 
-    const {imageActors, labelmapDataObject, labelmapColorLUT, planeMap} = fourUps[0]
+    const {
+      imageActors,
+      labelmapDataObject,
+      labelmapColorLUT,
+      planeMap,
+    } = fourUps[0];
 
-    const labelmapActors = {}
-    const ijk = ['I', 'J', 'K']
+    const labelmapActors = {};
+    const ijk = ['I', 'J', 'K'];
     ijk.forEach((key, index) => {
-      labelmapActors[key] = fourUps.map(fourUp => fourUp.labelmapActors[index])
-      labelmapActors[key + 'Fill'] = fourUps.map(fourUp => fourUp.labelmapFillActors[index])
-    })
+      labelmapActors[key] = fourUps.map(fourUp => fourUp.labelmapActors[index]);
+      labelmapActors[key + 'Fill'] = fourUps.map(
+        fourUp => fourUp.labelmapFillActors[index]
+      );
+    });
 
-    const marchingCubesActors = fourUps.map(fourUp => fourUp.segActor)
+    const marchingCubesActors = fourUps.map(fourUp => fourUp.segActor);
 
     // MR
     /////// Replace with image mapping. ///////
@@ -469,16 +499,15 @@ class VTK4UPExample extends Component {
       const apis = this.apis;
       apis[viewportIndex] = api;
 
-
       const istyle =
         type === '2D'
           ? vtkInteractorStyle2D4UpCrosshairs.newInstance()
-          : vtkInteractorStyle3D4UpCrosshairs.newInstance()
+          : vtkInteractorStyle3D4UpCrosshairs.newInstance();
 
       // add crosshair interactor
       api.setInteractorStyle({
         istyle,
-        configuration: { apis, apiIndex: viewportIndex},
+        configuration: { apis, apiIndex: viewportIndex },
       });
 
       // // Its up to the layout manager of an app to know how many viewports are being created.
@@ -497,14 +526,12 @@ class VTK4UPExample extends Component {
     const apis = this.apis;
 
     apis.forEach((api, i) => {
-      const istyle = api
-      .genericRenderWindow
-      .getRenderWindow()
-      .getInteractor()
-      .getInteractorStyle()
+      const istyle = api.genericRenderWindow
+        .getRenderWindow()
+        .getInteractor()
+        .getInteractorStyle();
 
-      istyle.toggleCrosshairs()
-
+      istyle.toggleCrosshairs();
     });
   };
 
@@ -512,14 +539,13 @@ class VTK4UPExample extends Component {
     const apis = this.apis;
 
     apis.forEach((api, i) => {
-      if (api.type == 'VIEW3D'){
-        const istyle = api
-        .genericRenderWindow
-        .getRenderWindow()
-        .getInteractor()
-        .getInteractorStyle()
+      if (api.type == 'VIEW3D') {
+        const istyle = api.genericRenderWindow
+          .getRenderWindow()
+          .getInteractor()
+          .getInteractorStyle();
 
-        istyle.toggleCrosshairSlices()
+        istyle.toggleCrosshairSlices();
       }
     });
   };
@@ -537,13 +563,21 @@ class VTK4UPExample extends Component {
     return (
       <>
         <div className="row">
-          <table style={{margin:'20px'}}>
-            <tbody style={{margin:'20px'}}>
+          <table style={{ margin: '20px' }}>
+            <tbody style={{ margin: '20px' }}>
               <tr>
-                <th><button type='checkbox' onClick={this.toggleCrosshairs}>Toggle Crosshairs</button></th>
+                <th>
+                  <button type="checkbox" onClick={this.toggleCrosshairs}>
+                    Toggle Crosshairs
+                  </button>
+                </th>
               </tr>
               <tr>
-                <th><button type='checkbox' onClick={this.toggleCrosshairSlices}>Toggle Crosshair Slices</button></th>
+                <th>
+                  <button type="checkbox" onClick={this.toggleCrosshairSlices}>
+                    Toggle Crosshair Slices
+                  </button>
+                </th>
               </tr>
             </tbody>
           </table>
@@ -601,4 +635,4 @@ class VTK4UPExample extends Component {
   }
 }
 
-export default VTK4UPExample;
+export default VTK4UPCrosshairsExample;
