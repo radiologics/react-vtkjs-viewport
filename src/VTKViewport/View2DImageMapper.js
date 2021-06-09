@@ -137,14 +137,14 @@ export default class View2DImageMapper extends Component {
           break;
       }
 
-      polyData.forEach((polyData, i) => {
+      polyData.forEach((data, i) => {
         const c = sliceCenter.map(s => Math.ceil(s));
         const plane = vtkPlane.newInstance();
         plane.setOrigin(...c);
         plane.setNormal(...normal);
         const cutter = vtkCutter.newInstance();
         cutter.setCutFunction(plane);
-        cutter.setInputData(polyData);
+        cutter.setInputData(data);
         // const tubeFilter = vtkTubeFilter.newInstance();
         // tubeFilter.setInputConnection(cutter.getOutputPort());
         // tubeFilter.setCapping(false);
