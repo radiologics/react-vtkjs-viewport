@@ -5,7 +5,7 @@ import vtkGenericRenderWindow from 'vtk.js/Sources/Rendering/Misc/GenericRenderW
 import vtkRenderer from 'vtk.js/Sources/Rendering/Core/Renderer';
 import vtkWidgetManager from 'vtk.js/Sources/Widgets/Core/WidgetManager';
 import vtkInteractorStyleMPRSlice from './vtkInteractorStyleMPRSlice';
-// import vtkPaintFilter from 'vtk.js/Sources/Filters/General/PaintFilter';
+import vtkPaintFilter from 'vtk.js/Sources/Filters/General/PaintFilter';
 import vtkPaintWidget from 'vtk.js/Sources/Widgets/Widgets3D/PaintWidget';
 import vtkSVGWidgetManager from './vtkSVGWidgetManager';
 import ViewportOverlay from '../ViewportOverlay/ViewportOverlay.js';
@@ -76,13 +76,15 @@ export default class View2D extends Component {
   }
 
   updatePaintbrush() {
-    const manip = this.paintWidget.getManipulator();
     const handle = this.paintWidget.getWidgetState().getHandle();
-    const camera = this.paintRenderer.getActiveCamera();
-    const normal = camera.getDirectionOfProjection();
-    manip.setNormal(...normal);
-    manip.setOrigin(...camera.getFocalPoint());
-    handle.rotateFromDirections(handle.getDirection(), normal);
+    if (typeof handle.rotateFromDirections === 'function') {
+      const manip = this.paintWidget.getManipulator();
+      const camera = this.paintRenderer.getActiveCamera();
+      const normal = camera.getDirectionOfProjection();
+      manip.setNormal(...normal);
+      manip.setOrigin(...camera.getFocalPoint());
+      handle.rotateFromDirections(handle.getDirection(), normal);
+    }
   }
 
   componentDidMount() {
