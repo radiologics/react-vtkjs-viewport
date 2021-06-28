@@ -4,6 +4,7 @@ import Constants from 'vtk.js/Sources/Rendering/Core/InteractorStyle/Constants';
 import vtkCoordinate from 'vtk.js/Sources/Rendering/Core/Coordinate';
 import vtkMatrixBuilder from 'vtk.js/Sources/Common/Core/MatrixBuilder';
 import { vec2, vec3, quat } from 'gl-matrix';
+import vtkMath from 'vtk.js/Sources/Common/Core/Math';
 
 const { States } = Constants;
 
@@ -30,6 +31,8 @@ function vtkInteractorStyleRotatableMPRCrosshairs(publicAPI, model) {
     const { apis, apiIndex, lineGrabDistance } = model;
     const thisApi = apis[apiIndex];
     let { position } = callData;
+
+    setOtherApisInactive();
 
     const { rotatableCrosshairsWidget } = thisApi.svgWidgets;
 
@@ -81,6 +84,15 @@ function vtkInteractorStyleRotatableMPRCrosshairs(publicAPI, model) {
 
           lineRotateHandles.selected = true;
 
+          // Set this line active.
+          if (lineIndex === 0) {
+            lines[0].active = true;
+            lines[1].active = false;
+          } else {
+            lines[0].active = false;
+            lines[1].active = true;
+          }
+
           return;
         }
       }
@@ -99,23 +111,54 @@ function vtkInteractorStyleRotatableMPRCrosshairs(publicAPI, model) {
         distanceFromFirstLine < distanceFromSecondLine ? 0 : 1;
 
       lines[selectedLineIndex].selected = true;
+      lines[selectedLineIndex].active = true;
 
-      // TODO -> MOVE LINE
+      // Deactivate other line if active
+      const otherLineIndex = selectedLineIndex === 0 ? 1 : 0;
 
-      const snapToLineIndex = selectedLineIndex === 0 ? 1 : 0;
+      lines[otherLineIndex].active = false;
 
-      // Get the line
+      // Set operation data.
 
       model.operation = {
         type: operations.MOVE_REFERENCE_LINE,
-        snapToLineIndex,
+        snapToLineIndex: selectedLineIndex === 0 ? 1 : 0,
       };
 
       return;
     }
 
+    lines.forEach(line => {
+      line.active = false;
+    });
+
+    setOtherApisInactive();
+
     // What is the fallback? Pan? Do nothing for now.
     model.operation = { type: null };
+  }
+
+  function setOtherApisInactive() {
+    // Set other apis inactive
+
+    const { apis, apiIndex } = model;
+
+    apis.forEach((api, index) => {
+      if (index !== apiIndex) {
+        const { rotatableCrosshairsWidget } = api.svgWidgets;
+
+        if (!rotatableCrosshairsWidget) {
+          throw new Error(
+            'Must use rotatable crosshair svg widget with this istyle.'
+          );
+        }
+
+        const lines = rotatableCrosshairsWidget.getReferenceLines();
+
+        lines[0].active = false;
+        lines[1].active = false;
+      }
+    });
   }
 
   function distanceFromLine(line, point) {
@@ -142,16 +185,21 @@ function vtkInteractorStyleRotatableMPRCrosshairs(publicAPI, model) {
     const { operation } = model;
     const { type } = operation;
 
+    let snapToLineIndex;
+    let pos;
+
     switch (type) {
       case operations.MOVE_CROSSHAIRS:
+        moveCrosshairs(callData.position, callData.pokedRenderer);
+        break;
       case operations.MOVE_REFERENCE_LINE:
-        moveCrosshairs(callData);
+        snapToLineIndex = operation.snapToLineIndex;
+        pos = snapPosToLine(callData.position, snapToLineIndex);
+
+        moveCrosshairs(pos, callData.pokedRenderer);
         break;
       case operations.ROTATE_CROSSHAIRS:
         rotateCrosshairs(callData);
-        break;
-      case operations.PAN:
-        pan(callData);
         break;
     }
   }
@@ -195,7 +243,7 @@ function vtkInteractorStyleRotatableMPRCrosshairs(publicAPI, model) {
       pointToNewPosition[0] * pointToPreviousPosition[1] -
       pointToNewPosition[1] * pointToPreviousPosition[0];
 
-    if (determinant < 0) {
+    if (determinant > 0) {
       angle *= -1;
     }
 
@@ -203,27 +251,91 @@ function vtkInteractorStyleRotatableMPRCrosshairs(publicAPI, model) {
     const sliceNormal = thisApi.getSliceNormal();
     const axis = [-sliceNormal[0], -sliceNormal[1], -sliceNormal[2]];
 
-    const { matrix } = vtkMatrixBuilder.buildFromRadian().rotate(angle, axis);
-
     // Rotate other apis
     apis.forEach((api, index) => {
       if (index !== apiIndex) {
-        // get normal and viewUp.
+        const cameraForApi = api.genericRenderWindow
+          .getRenderWindow()
+          .getInteractor()
+          .getCurrentRenderer()
+          .getActiveCamera();
+
+        const crosshairPointForApi = api.get('cachedCrosshairWorldPosition');
+        const initialCrosshairPointForApi = api.get(
+          'initialCachedCrosshairWorldPosition'
+        );
+
+        const center = [];
+        vtkMath.subtract(
+          crosshairPointForApi,
+          initialCrosshairPointForApi,
+          center
+        );
+        const translate = [];
+        vtkMath.add(crosshairPointForApi, center, translate);
+
+        const { matrix } = vtkMatrixBuilder
+          .buildFromRadian()
+          .translate(translate[0], translate[1], translate[2])
+          .rotate(angle, axis)
+          .translate(-translate[0], -translate[1], -translate[2]);
+
+        cameraForApi.applyTransform(matrix);
 
         const sliceNormalForApi = api.getSliceNormal();
         const viewUpForApi = api.getViewUp();
-
-        const newSliceNormalForApi = [];
-        const newViewUpForApi = [];
-
-        vec3.transformMat4(newSliceNormalForApi, sliceNormalForApi, matrix);
-        vec3.transformMat4(newViewUpForApi, viewUpForApi, matrix);
-
-        api.setOrientation(newSliceNormalForApi, newViewUpForApi);
+        api.setOrientation(sliceNormalForApi, viewUpForApi);
       }
     });
 
     updateCrosshairs(callData);
+
+    /*
+    After the rotations and update of the crosshairs, the focal point of the
+    camera has a shift along the line of sight coordinate respect to the
+    crosshair (i.e., the focal point is not on the same slice of the crosshair).
+    We calculate the new focal point coordinates as the nearest point between
+    the line of sight of the camera and the crosshair coordinates:
+
+      p1 = cameraPositionForApi
+      p2 = cameraFocalPointForApi
+      q = crosshairPointForApi
+
+      Vector3 u = p2 - p1;
+      Vector3 pq = q - p1;
+      Vector3 w2 = pq - vtkMath.multiplyScalar(u, vtkMath.dot(pq, u) / u2);
+
+      Vector3 newFocalPoint = q - w2;
+    */
+
+    apis.forEach(api => {
+      const cameraForApi = api.genericRenderWindow
+        .getRenderWindow()
+        .getInteractor()
+        .getCurrentRenderer()
+        .getActiveCamera();
+
+      const crosshairPointForApi = api.get('cachedCrosshairWorldPosition');
+      const cameraFocalPointForApi = cameraForApi.getFocalPoint();
+      const cameraPositionForApi = cameraForApi.getPosition();
+
+      const u = [];
+      vtkMath.subtract(cameraFocalPointForApi, cameraPositionForApi, u);
+      const pq = [];
+      vtkMath.subtract(crosshairPointForApi, cameraPositionForApi, pq);
+      const uLength2 = u[0] * u[0] + u[1] * u[1] + u[2] * u[2];
+      vtkMath.multiplyScalar(u, vtkMath.dot(pq, u) / uLength2);
+      const w2 = [];
+      vtkMath.subtract(pq, u, w2);
+      const newFocalPointForApi = [];
+      vtkMath.subtract(crosshairPointForApi, w2, newFocalPointForApi);
+
+      cameraForApi.setFocalPoint(
+        newFocalPointForApi[0],
+        newFocalPointForApi[1],
+        newFocalPointForApi[2]
+      );
+    });
 
     operation.prevPosition = newPosition;
   }
@@ -234,32 +346,9 @@ function vtkInteractorStyleRotatableMPRCrosshairs(publicAPI, model) {
 
     const { rotatableCrosshairsWidget } = thisApi.svgWidgets;
 
-    const point = rotatableCrosshairsWidget.getPoint();
+    const worldPos = thisApi.get('cachedCrosshairWorldPosition');
 
-    const renderer = callData.pokedRenderer;
-    const dPos = vtkCoordinate.newInstance();
-    dPos.setCoordinateSystemToDisplay();
-
-    dPos.setValue(point[0], point[1], 0);
-    let worldPos = dPos.getComputedWorldValue(renderer);
-
-    const camera = renderer.getActiveCamera();
-    const directionOfProjection = camera.getDirectionOfProjection();
-
-    const halfSlabThickness = thisApi.getSlabThickness() / 2;
-
-    // Add half of the slab thickness to the world position, such that we select
-    // The center of the slice.
-
-    for (let i = 0; i < worldPos.length; i++) {
-      worldPos[i] += halfSlabThickness * directionOfProjection[i];
-    }
-
-    thisApi.svgWidgets.rotatableCrosshairsWidget.moveCrosshairs(
-      worldPos,
-      apis,
-      apiIndex
-    );
+    rotatableCrosshairsWidget.moveCrosshairs(worldPos, apis, apiIndex);
   }
 
   function snapPosToLine(position, lineIndex) {
@@ -315,21 +404,9 @@ function vtkInteractorStyleRotatableMPRCrosshairs(publicAPI, model) {
     };
   }
 
-  function moveCrosshairs(callData) {
+  function moveCrosshairs(pos, renderer) {
     const { apis, apiIndex } = model;
-    const api = apis[apiIndex];
-    const { operation } = model;
-    const { snapToLineIndex } = operation;
-
-    let pos;
-
-    if (snapToLineIndex !== undefined) {
-      pos = snapPosToLine(callData.position, snapToLineIndex);
-    } else {
-      pos = callData.position;
-    }
-
-    const renderer = callData.pokedRenderer;
+    const thisApi = apis[apiIndex];
 
     const dPos = vtkCoordinate.newInstance();
     dPos.setCoordinateSystemToDisplay();
@@ -340,7 +417,7 @@ function vtkInteractorStyleRotatableMPRCrosshairs(publicAPI, model) {
     const camera = renderer.getActiveCamera();
     const directionOfProjection = camera.getDirectionOfProjection();
 
-    const halfSlabThickness = api.getSlabThickness() / 2;
+    const halfSlabThickness = thisApi.getSlabThickness() / 2;
 
     // Add half of the slab thickness to the world position, such that we select
     // The center of the slice.
@@ -349,13 +426,154 @@ function vtkInteractorStyleRotatableMPRCrosshairs(publicAPI, model) {
       worldPos[i] += halfSlabThickness * directionOfProjection[i];
     }
 
-    api.svgWidgets.rotatableCrosshairsWidget.moveCrosshairs(
+    thisApi.svgWidgets.rotatableCrosshairsWidget.moveCrosshairs(
       worldPos,
       apis,
       apiIndex
     );
 
     publicAPI.invokeInteractionEvent({ type: 'InteractionEvent' });
+  }
+
+  function scrollCrosshairs(lineIndex, direction) {
+    const { apis, apiIndex } = model;
+    const thisApi = apis[apiIndex];
+    const { svgWidgetManager, volumes } = thisApi;
+    const volume = volumes[0];
+    const size = svgWidgetManager.getSize();
+    const scale = svgWidgetManager.getScale();
+    const height = size[1];
+    const renderer = thisApi.genericRenderWindow.getRenderer();
+
+    const { rotatableCrosshairsWidget } = thisApi.svgWidgets;
+
+    if (!rotatableCrosshairsWidget) {
+      throw new Error(
+        'Must use rotatable crosshair svg widget with this istyle.'
+      );
+    }
+
+    const lines = rotatableCrosshairsWidget.getReferenceLines();
+    const otherLineIndex = lineIndex === 0 ? 1 : 0;
+
+    const point = rotatableCrosshairsWidget.getPoint();
+    // Transform point to SVG coordinates
+    const p = [point[0] * scale, height - point[1] * scale];
+
+    // Get the unit vector to move the line in.
+
+    const linePoints = lines[otherLineIndex].points;
+    let lowToHighPoints;
+
+    // If line is horizontal (<1 pix difference in height), move right when scroll forward.
+    if (Math.abs(linePoints[0].y - linePoints[1].y) < 1.0) {
+      if (linePoints[0].x < linePoints[1].x) {
+        lowToHighPoints = [linePoints[0], linePoints[1]];
+      } else {
+        lowToHighPoints = [linePoints[1], linePoints[0]];
+      }
+    }
+    // If end is higher on screen, scroll moves crosshairs that way.
+    else if (linePoints[0].y < linePoints[1].y) {
+      lowToHighPoints = [linePoints[0], linePoints[1]];
+    } else {
+      lowToHighPoints = [linePoints[1], linePoints[0]];
+    }
+
+    const unitVector = [];
+    vec2.subtract(
+      unitVector,
+      [lowToHighPoints[1].x, lowToHighPoints[1].y],
+      [lowToHighPoints[0].x, lowToHighPoints[0].y]
+    );
+    vec2.normalize(unitVector, unitVector);
+
+    if (direction === 'forwards') {
+      unitVector[0] *= -1;
+      unitVector[1] *= -1;
+    }
+
+    const displayCoordintateScrollIncrement = getDisplayCoordinateScrollIncrement(
+      point
+    );
+
+    const newCenterPointSVG = [
+      p[0] + unitVector[0] * displayCoordintateScrollIncrement,
+      p[1] + unitVector[1] * displayCoordintateScrollIncrement,
+    ];
+
+    // Clip to box defined by the crosshairs extent
+
+    let lowX;
+    let highX;
+    let lowY;
+    let highY;
+
+    if (lowToHighPoints[0].x < lowToHighPoints[1].x) {
+      lowX = lowToHighPoints[0].x;
+      highX = lowToHighPoints[1].x;
+    } else {
+      lowX = lowToHighPoints[1].x;
+      highX = lowToHighPoints[0].x;
+    }
+
+    if (lowToHighPoints[0].y < lowToHighPoints[1].y) {
+      lowY = lowToHighPoints[0].y;
+      highY = lowToHighPoints[1].y;
+    } else {
+      lowY = lowToHighPoints[1].y;
+      highY = lowToHighPoints[0].y;
+    }
+
+    newCenterPointSVG[0] = Math.min(
+      Math.max(newCenterPointSVG[0], lowX),
+      highX
+    );
+
+    newCenterPointSVG[1] = Math.min(
+      Math.max(newCenterPointSVG[1], lowY),
+      highY
+    );
+
+    // translate to the display coordinates.
+    const displayCoordinate = {
+      x: newCenterPointSVG[0] / scale,
+      y: (height - newCenterPointSVG[1]) / scale,
+    };
+
+    // Move point.
+    moveCrosshairs(displayCoordinate, renderer);
+  }
+
+  function getDisplayCoordinateScrollIncrement(point) {
+    const { apis, apiIndex } = model;
+    const thisApi = apis[apiIndex];
+    const { volumes, genericRenderWindow } = thisApi;
+    const renderer = genericRenderWindow.getRenderer();
+    const volume = volumes[0];
+    const diagonalWorldLength = volume
+      .getMapper()
+      .getInputData()
+      .getSpacing()
+      .map(v => v * v)
+      .reduce((a, b) => a + b, 0);
+
+    const dPos = vtkCoordinate.newInstance();
+    dPos.setCoordinateSystemToDisplay();
+    dPos.setValue(point[0], point[1], 0);
+
+    let worldPosCenter = dPos.getComputedWorldValue(renderer);
+
+    dPos.setValue(point[0] + 1, point[1], 0);
+
+    let worldPosOnePixelOver = dPos.getComputedWorldValue(renderer);
+
+    const distanceOfOnePixelInWorld = vec2.distance(
+      worldPosCenter,
+      worldPosOnePixelOver
+    );
+
+    return diagonalWorldLength / distanceOfOnePixelInWorld;
   }
 
   function handlePassiveMouseMove(callData) {
@@ -472,17 +690,13 @@ function vtkInteractorStyleRotatableMPRCrosshairs(publicAPI, model) {
     }
   };
 
-  const superHandleLeftButtonPress = publicAPI.handleLeftButtonPress;
+  //const superHandleLeftButtonPress = publicAPI.handleLeftButtonPress;
   publicAPI.handleLeftButtonPress = callData => {
-    if (!callData.shiftKey && !callData.controlKey) {
-      if (model.volumeActor) {
-        selectOpperation(callData);
-        performOperation(callData);
+    if (model.volumeActor) {
+      selectOpperation(callData);
+      performOperation(callData);
 
-        publicAPI.startWindowLevel();
-      }
-    } else if (superHandleLeftButtonPress) {
-      superHandleLeftButtonPress(callData);
+      publicAPI.startWindowLevel();
     }
   };
 
@@ -524,13 +738,53 @@ function vtkInteractorStyleRotatableMPRCrosshairs(publicAPI, model) {
 
     publicAPI.endWindowLevel();
   }
+
+  const superScrollToSlice = publicAPI.scrollToSlice;
+  publicAPI.scrollToSlice = slice => {
+    const { apis, apiIndex, lineGrabDistance } = model;
+    const thisApi = apis[apiIndex];
+
+    const { rotatableCrosshairsWidget } = thisApi.svgWidgets;
+
+    if (!rotatableCrosshairsWidget) {
+      throw new Error(
+        'Must use rotatable crosshair svg widget with this istyle.'
+      );
+    }
+
+    const lines = rotatableCrosshairsWidget.getReferenceLines();
+
+    let activeLineIndex;
+
+    lines.forEach((line, lineIndex) => {
+      if (line.active) {
+        activeLineIndex = lineIndex;
+      }
+    });
+
+    if (activeLineIndex === undefined) {
+      if (!model.disableNormalMPRScroll) {
+        superScrollToSlice(slice);
+      }
+    } else {
+      const direction = publicAPI.getSlice() - slice;
+
+      const scrollDirection = direction > 0 ? 'forwards' : 'backwards';
+
+      scrollCrosshairs(activeLineIndex, scrollDirection);
+    }
+  };
 }
 
 // ----------------------------------------------------------------------------
 // Object factory
 // ----------------------------------------------------------------------------
 
-const DEFAULT_VALUES = { operation: { type: null }, lineGrabDistance: 20 };
+const DEFAULT_VALUES = {
+  operation: { type: null },
+  lineGrabDistance: 20,
+  disableNormalMPRScroll: false,
+};
 
 // ----------------------------------------------------------------------------
 
@@ -547,6 +801,7 @@ export function extend(publicAPI, model, initialValues = {}) {
     'onScroll',
     'operation',
     'lineGrabDistance',
+    'disableNormalMPRScroll',
   ]);
 
   // Object specific methods

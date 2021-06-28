@@ -92,8 +92,15 @@ function vtkSVGRotatableCrosshairsWidget(publicAPI, model) {
           renderer
         );
 
+        // convert to svg coordinates:
+
+        const doubleSVGPosition = [
+          doubleDisplayPosition[0] * scale,
+          height - doubleDisplayPosition[1] * scale,
+        ];
+
         let unitVectorFromCenter = [];
-        vec2.subtract(unitVectorFromCenter, p, doubleDisplayPosition);
+        vec2.subtract(unitVectorFromCenter, p, doubleSVGPosition);
         vec2.normalize(unitVectorFromCenter, unitVectorFromCenter);
 
         const distantPoint = [
@@ -119,10 +126,12 @@ function vtkSVGRotatableCrosshairsWidget(publicAPI, model) {
 
         let lineSelected = false;
         let rotateSelected = false;
+        let lineActive = false;
 
         if (oldReferenceLine) {
           lineSelected = oldReferenceLine.selected;
           rotateSelected = oldReferenceLine.rotateHandles.selected;
+          lineActive = oldReferenceLine.active;
         }
 
         const firstRotateHandle = {
@@ -150,6 +159,7 @@ function vtkSVGRotatableCrosshairsWidget(publicAPI, model) {
           color: strokeColors[i],
           apiIndex: i,
           selected: lineSelected,
+          active: lineActive,
         };
 
         referenceLines.push(referenceLine);
@@ -169,6 +179,7 @@ function vtkSVGRotatableCrosshairsWidget(publicAPI, model) {
       strokeColors,
       strokeWidth,
       strokeDashArray,
+      rotateHandleRadius,
       apis,
       apiIndex,
       selectedStrokeWidth,
@@ -213,12 +224,17 @@ function vtkSVGRotatableCrosshairsWidget(publicAPI, model) {
       p
     );
 
-    const firstLineStrokeWidth = firstLine.selected
-      ? selectedStrokeWidth
-      : strokeWidth;
-    const secondLineStrokeWidth = secondLine.selected
-      ? selectedStrokeWidth
-      : strokeWidth;
+    const firstLineStrokeColor = strokeColors[firstLine.apiIndex];
+    const secondLineStrokeColor = strokeColors[secondLine.apiIndex];
+
+    const firstLineStrokeWidth =
+      firstLine.selected || firstLine.active
+        ? selectedStrokeWidth
+        : strokeWidth;
+    const secondLineStrokeWidth =
+      secondLine.selected || secondLine.active
+        ? selectedStrokeWidth
+        : strokeWidth;
 
     const firstLineRotateWidth = firstLineRotateSelected
       ? selectedStrokeWidth
@@ -227,6 +243,27 @@ function vtkSVGRotatableCrosshairsWidget(publicAPI, model) {
       ? selectedStrokeWidth
       : strokeWidth;
 
+    const firstLineShowCrosshairs =
+      firstLine.selected || firstLineRotateSelected;
+    const secondLineShowCrosshairs =
+      secondLine.selected || secondLineRotateSelected;
+
+    const firstLineRotateHandleRadius = firstLineShowCrosshairs
+      ? rotateHandleRadius
+      : 0;
+
+    const secondLineRotateHandleRadius = secondLineShowCrosshairs
+      ? rotateHandleRadius
+      : 0;
+
+    const firstLineRotateHandleFill = firstLineRotateSelected
+      ? referenceLines[0].color
+      : 'none';
+
+    const secondLineRotateHandleFill = secondLineRotateSelected
+      ? referenceLines[1].color
+      : 'none';
+
     if (model.display) {
       node.innerHTML = `
       <g id="container" fill-opacity="1" stroke-dasharray="none" stroke="none" stroke-opacity="1" fill="none">
@@ -234,7 +271,7 @@ function vtkSVGRotatableCrosshairsWidget(publicAPI, model) {
        <svg version="1.1" viewBox="0 0 ${width} ${height}" width=${width} height=${height} style="width: 100%; height: 100%">
         <g
 
-          stroke="${referenceLines[0].color}"
+          stroke="${firstLineStrokeColor}"
           stroke-dasharray="${strokeDashArray}"
           stroke-linecap="round"
           stroke-linejoin="round"
@@ -265,15 +302,15 @@ function vtkSVGRotatableCrosshairsWidget(publicAPI, model) {
             <!--First line rotateHandle 0 -->
             <circle cx="${firstLineRotateHandles[0].x}" cy="${
         firstLineRotateHandles[0].y
-      }" r="10" fill="none" />
+      }" r="${firstLineRotateHandleRadius}" fill="${firstLineRotateHandleFill}" />
             <!--First line rotateHandle 1 -->
             <circle cx="${firstLineRotateHandles[1].x}" cy="${
         firstLineRotateHandles[1].y
-      }" r="10" fill="none" />
+      }" r="${firstLineRotateHandleRadius}" fill="${firstLineRotateHandleFill}" />
         </g>
         <g
           stroke-dasharray="${strokeDashArray}"
-          stroke="${referenceLines[1].color}"
+          stroke="${secondLineStrokeColor}"
           stroke-linecap="round"
           stroke-linejoin="round"
           stroke-width=${secondLineStrokeWidth}
@@ -303,13 +340,13 @@ function vtkSVGRotatableCrosshairsWidget(publicAPI, model) {
         <!--Second line rotateHandle 0 -->
         <circle cx="${secondLineRotateHandles[0].x}" cy="${
         secondLineRotateHandles[0].y
-      }" r="10" fill="none" />
+      }" r="${secondLineRotateHandleRadius}" fill="${secondLineRotateHandleFill}" />
         <!--Second line rotateHandle 1 -->
         <circle cx="${secondLineRotateHandles[1].x}" cy="${
         secondLineRotateHandles[1].y
-      }" r="10" fill="none" />
+      }" r="${secondLineRotateHandleRadius}" fill="${secondLineRotateHandleFill}" />
       </g>
-      <circle cx="${bottom - 20}" cy="${left + 20}" r="10" fill="${
+      <circle cx="${width - 20}" cy="${20}" r="10" fill="${
         strokeColors[apiIndex]
       }" />
       </g>
@@ -392,6 +429,9 @@ function vtkSVGRotatableCrosshairsWidget(publicAPI, model) {
     // Set camera focal point to world coordinate for linked views
     apis.forEach((api, apiIndex) => {
       api.set('cachedCrosshairWorldPosition', worldPos);
+      if (api.get('initialCachedCrosshairWorldPosition') === undefined) {
+        api.set('initialCachedCrosshairWorldPosition', worldPos);
+      }
 
       // We are basically doing the same as getSlice but with the world coordinate
       // that we want to jump to instead of the camera focal point.
@@ -476,8 +516,9 @@ const DEFAULT_VALUES = {
   apis: [null, null, null],
   referenceLines: [null, null],
   strokeColors: ['#e83a0e', '#ede90c', '#07e345'],
-  strokeWidth: 2,
-  selectedStrokeWidth: 5,
+  strokeWidth: 1,
+  rotateHandleRadius: 5,
+  selectedStrokeWidth: 3,
   centerRadius: 20,
   strokeDashArray: '',
   display: true,

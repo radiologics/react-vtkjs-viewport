@@ -13,10 +13,12 @@ import vtkVolume from 'vtk.js/Sources/Rendering/Core/Volume';
 import vtkVolumeMapper from 'vtk.js/Sources/Rendering/Core/VolumeMapper';
 
 const url = 'https://server.dcmjs.org/dcm4chee-arc/aets/DCM4CHEE/rs';
+
 const studyInstanceUID =
-  '1.3.6.1.4.1.14519.5.2.1.2744.7002.373729467545468642229382466905';
-const ctSeriesInstanceUID =
-  '1.3.6.1.4.1.14519.5.2.1.2744.7002.182837959725425690842769990419';
+  '1.3.12.2.1107.5.2.32.35162.30000015050317233592200000046';
+const mrSeriesInstanceUID =
+  '1.3.12.2.1107.5.2.32.35162.1999123112191238897317963.0.0.0';
+
 const searchInstanceOptions = {
   studyInstanceUID,
 };
@@ -74,7 +76,7 @@ class VTKRotatableCrosshairsExample extends Component {
     const imageIds = await createStudyImageIds(url, searchInstanceOptions);
 
     let ctImageIds = imageIds.filter(imageId =>
-      imageId.includes(ctSeriesInstanceUID)
+      imageId.includes(mrSeriesInstanceUID)
     );
 
     const ctImageDataObject = loadDataset(ctImageIds, 'ctDisplaySet');
@@ -121,13 +123,14 @@ class VTKRotatableCrosshairsExample extends Component {
 
       const istyle = vtkInteractorStyleRotatableMPRCrosshairs.newInstance();
 
-      // // add istyle
+      // add istyle
       api.setInteractorStyle({
         istyle,
-        configuration: { apis, apiIndex: viewportIndex },
+        configuration: {
+          apis,
+          apiIndex: viewportIndex,
+        },
       });
-
-      //api.setInteractorStyle({ istyle });
 
       // set blend mode to MIP.
       const mapper = api.volumes[0].getMapper();
@@ -207,6 +210,17 @@ class VTKRotatableCrosshairsExample extends Component {
     this.setState({ displayCrosshairs: shouldDisplayCrosshairs });
   };
 
+  resetCrosshairs = () => {
+    const apis = this.apis;
+
+    apis.forEach(api => {
+      api.resetOrientation();
+    });
+
+    // Reset the crosshairs
+    apis[0].svgWidgets.rotatableCrosshairsWidget.resetCrosshairs(apis, 0);
+  };
+
   render() {
     if (!this.state.volumes || !this.state.volumes.length) {
       return <h4>Loading...</h4>;
@@ -241,6 +255,7 @@ class VTKRotatableCrosshairsExample extends Component {
                 ? 'Switch To WL/Zoom/Pan/Scroll'
                 : 'Switch To Crosshairs'}
             </button>
+            <button onClick={this.resetCrosshairs}>reset crosshairs</button>
           </div>
         </div>
         <div className="row">
