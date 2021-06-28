@@ -16,12 +16,19 @@ import vtkActor from 'vtk.js/Sources/Rendering/Core/Actor';
 import vtkImageData from 'vtk.js/Sources/Common/DataModel/ImageData';
 import vtkDataArray from 'vtk.js/Sources/Common/Core/DataArray';
 import cornerstoneTools from 'cornerstone-tools';
+import cornerstoneWADOImageLoader from 'cornerstone-wado-image-loader';
+import cornerstone from 'cornerstone-core';
+import dicomParser from 'dicom-parser';
 import vtkColorTransferFunction from 'vtk.js/Sources/Rendering/Core/ColorTransferFunction';
 import vtkPiecewiseFunction from 'vtk.js/Sources/Common/DataModel/PiecewiseFunction';
 import vtkImageOutlineFilter from 'vtk.js/Sources/Filters/General/ImageOutlineFilter';
 
 const segmentationModule = cornerstoneTools.getModule('segmentation');
 
+cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
+cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
+window.cornerstone = cornerstone;
+window.cornerstoneWADOImageLoader = cornerstoneWADOImageLoader;
 
 // MR  1.3.12.2.1107.5.2.32.35162.1999123112191238897317963.0.0.0
 // SEG 	1.2.276.0.7230010.3.1.3.296485376.8.1542816659.201008
@@ -76,7 +83,7 @@ function makeLabelMapColorTransferFunction(lablemapColorLUT, color) {
 
 const buildColorTransferFunction = (labelmap, colorLUT, opacity, color) => {
   // TODO -> It seems to crash if you set it higher than 256??
-  const numColors = Math.min(256, colorLUT.length);
+  // const numColors = Math.min(256, colorLUT.length);
 
   // This commented out code will read the actual labelmap values, but we have one (?) volume
 

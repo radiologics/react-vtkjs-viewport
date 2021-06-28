@@ -165,21 +165,22 @@ function AppRouter() {
   return (
     <Router>
       <Switch>
-        <Route exact path="/" component={Index} />
-        <Route exact path="/basic/" render={basic} />
         <Route exact path="/fusion/" render={fusion} />
         <Route exact path="/painting" render={painting} />
         <Route exact path="/cornerstone-sync-painting" render={synced} />
         <Route exact path="/crosshairs" render={crosshairs} />
         <Route
-          exact
-          path="/rotatable-crosshairs"
-          render={rotatableCrosshairs}
+        exact
+        path="/rotatable-crosshairs"
+        render={rotatableCrosshairs}
         />
         <Route exact path="/4up" render={fourUp} />
         <Route exact path="/rotate" render={rotateMPR} />
         <Route exact path="/volume-rendering" render={volumeRendering} />
         <Route exact path="/cornerstone-load-image-data" render={loadImage} />
+        <Route exact path="/" component={Index} />
+        <Route exact path="/4up" render={fourUp} />
+        <Route exact path="/basic/" render={basic} />
         <Route exact component={Index} />
       </Switch>
     </Router>

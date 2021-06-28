@@ -6,6 +6,7 @@ import vtkVolume from 'vtk.js/Sources/Rendering/Core/Volume';
 import vtkVolumeMapper from 'vtk.js/Sources/Rendering/Core/VolumeMapper';
 import vtkOrientationMarkerWidget from 'vtk.js/Sources/Interaction/Widgets/OrientationMarkerWidget';
 import vtkAnnotatedCubeActor from 'vtk.js/Sources/Rendering/Core/AnnotatedCubeActor';
+import 'vtk.js/Sources/IO/Core/DataAccessHelper/HttpDataAccessHelper';
 
 import cornerstoneWADOImageLoader from 'cornerstone-wado-image-loader';
 import './initCornerstone.js';
