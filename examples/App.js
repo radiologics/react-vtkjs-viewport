@@ -174,6 +174,7 @@ function AppRouter() {
         path="/rotatable-crosshairs"
         render={rotatableCrosshairs}
         />
+        <Route exact path="/4up" render={fourUp} />
         <Route exact path="/rotate" render={rotateMPR} />
         <Route exact path="/volume-rendering" render={volumeRendering} />
         <Route exact path="/cornerstone-load-image-data" render={loadImage} />

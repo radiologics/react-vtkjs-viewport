@@ -200,9 +200,9 @@ export default class View3DMarchingCubes extends Component {
       // Set camera
       const camera = this.renderer.getActiveCamera();
       // Direction of projection - negative of the normal
-      // camera.setDirectionOfProjection(-normal[0], -normal[1], -normal[2]);
+      camera.setDirectionOfProjection(-normal[0], -normal[1], -normal[2]);
       // View up is the Axial direction
-      // camera.setViewUp(...viewUp);
+      camera.setViewUp(...viewUp);
       this.renderer.resetCamera();
 
       // orientation widget (update marker orientation after camera reset)
